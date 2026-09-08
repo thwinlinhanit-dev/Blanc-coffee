@@ -1,0 +1,6 @@
+{
+  "name": "BLANC COFFEE",
+  "description": "Real-time income, outcome, inventory, sales performance, and customer order tracking for BLANC COFFEE (Coffee, Green Tea & Macadamia Nut).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
