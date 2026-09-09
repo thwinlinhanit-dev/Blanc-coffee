@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.blanccoffee.app.data.model.CustomerOrder
+import com.blanccoffee.app.data.model.CustomerPayment
 import com.blanccoffee.app.data.model.OrderItem
 import com.blanccoffee.app.data.model.Product
 import com.blanccoffee.app.data.model.ProductRecipe
@@ -59,6 +60,30 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+/**
+ * Migration 2 -> 3: credit tabs (customer_payments), order discounts and
+ * expiry dates for products + raw materials. All additive — no data touched.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `orders` ADD COLUMN `discountAmount` REAL NOT NULL DEFAULT 0.0")
+        db.execSQL("ALTER TABLE `orders` ADD COLUMN `discountReason` TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE `products` ADD COLUMN `expiryDate` INTEGER")
+        db.execSQL("ALTER TABLE `raw_materials` ADD COLUMN `expiryDate` INTEGER")
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `customer_payments` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `orderId` INTEGER NOT NULL,
+                `amount` REAL NOT NULL,
+                `method` TEXT NOT NULL,
+                `note` TEXT NOT NULL,
+                `timestamp` INTEGER NOT NULL)"""
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_customer_payments_orderId` ON `customer_payments` (`orderId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_customer_payments_timestamp` ON `customer_payments` (`timestamp`)")
+    }
+}
+
 @Database(
     entities = [
         Product::class,
@@ -67,9 +92,10 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         Transaction::class,
         RawMaterial::class,
         RawMaterialMovement::class,
-        ProductRecipe::class
+        ProductRecipe::class,
+        CustomerPayment::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -80,6 +106,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun orderDao(): OrderDao
     abstract fun transactionDao(): TransactionDao
     abstract fun rawMaterialDao(): RawMaterialDao
+    abstract fun customerPaymentDao(): CustomerPaymentDao
 
     companion object {
         @Volatile
@@ -92,9 +119,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "blanc_coffee.db"
                 )
-                    // Migration 1->2 preserves real shop data (creates raw tables only).
+                    // Migrations preserve real shop data (additive only).
                     // fallbackToDestructiveMigration stays as a last-resort safety net.
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

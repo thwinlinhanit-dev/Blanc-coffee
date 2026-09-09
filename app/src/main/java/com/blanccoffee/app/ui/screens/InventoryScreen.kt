@@ -75,6 +75,7 @@ import com.blanccoffee.app.ui.components.EntryType
 import com.blanccoffee.app.ui.components.StockBadge
 import com.blanccoffee.app.ui.components.StockQuickAdjuster
 import com.blanccoffee.app.ui.components.formatCurrency
+import com.blanccoffee.app.ui.components.formatDateOnly
 import com.blanccoffee.app.ui.theme.CoffeePrimary
 import com.blanccoffee.app.ui.theme.IncomeGreen
 import com.blanccoffee.app.ui.theme.OutcomeRed
@@ -398,6 +399,25 @@ private fun ProductInventoryCard(
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
+
+            // Expiry badge (only for perishables with a date set)
+            product.expiryDate?.let { exp ->
+                val now = System.currentTimeMillis()
+                val day = 24 * 3600 * 1000L
+                val (expText, expColor) = when {
+                    exp <= now -> "⛔ Expired ${formatDateOnly(exp)}" to OutcomeRed
+                    exp - now <= 7 * day -> "⏳ Expires ${formatDateOnly(exp)}" to WarningOrange
+                    else -> "Expires ${formatDateOnly(exp)}" to
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = expText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = expColor
+                )
+            }
 
             if (product.description.isNotBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))

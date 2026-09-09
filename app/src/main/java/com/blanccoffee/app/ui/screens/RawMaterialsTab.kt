@@ -61,6 +61,7 @@ import com.blanccoffee.app.data.model.RawMovementType
 import com.blanccoffee.app.ui.ShopViewModel
 import com.blanccoffee.app.ui.components.EmptyStateView
 import com.blanccoffee.app.ui.components.formatCurrency
+import com.blanccoffee.app.ui.components.formatDateOnly
 import com.blanccoffee.app.ui.components.formatDateTime
 import com.blanccoffee.app.ui.theme.CoffeePrimary
 import com.blanccoffee.app.ui.theme.IncomeGreen
@@ -368,6 +369,25 @@ private fun RawMaterialCard(
                 )
             }
 
+            // Expiry badge (perishables only)
+            material.expiryDate?.let { exp ->
+                val now = System.currentTimeMillis()
+                val day = 24 * 3600 * 1000L
+                val (expText, expColor) = when {
+                    exp <= now -> "⛔ Expired ${formatDateOnly(exp)}" to OutcomeRed
+                    exp - now <= 7 * day -> "⏳ Expires ${formatDateOnly(exp)}" to WarningOrange
+                    else -> "Expires ${formatDateOnly(exp)}" to
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = expText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = expColor
+                )
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = if (linkedProductCount > 0) {
@@ -460,10 +480,31 @@ private fun AddEditRawMaterialDialog(
     }
     var sku by remember { mutableStateOf(existing?.sku ?: "") }
     var note by remember { mutableStateOf(existing?.note ?: "") }
+    var expiryText by remember {
+        mutableStateOf(
+            existing?.expiryDate?.let {
+                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                    .format(java.util.Date(it))
+            } ?: ""
+        )
+    }
+
+    fun parseExpiryOrNull(text: String): Long? {
+        val t = text.trim()
+        if (t.isEmpty()) return null
+        return try {
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            fmt.isLenient = false
+            fmt.parse(t)?.time
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     val valid = name.isNotBlank() &&
         (stockText.toDoubleOrNull() ?: -1.0) >= 0 &&
-        (minText.toDoubleOrNull() ?: -1.0) >= 0
+        (minText.toDoubleOrNull() ?: -1.0) >= 0 &&
+        (expiryText.isBlank() || parseExpiryOrNull(expiryText) != null)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -519,6 +560,14 @@ private fun AddEditRawMaterialDialog(
                     singleLine = true, shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+                OutlinedTextField(
+                    value = expiryText, onValueChange = { expiryText = it },
+                    label = { Text("Expiry (optional, YYYY-MM-DD)") },
+                    placeholder = { Text("e.g. 2026-12-31") },
+                    singleLine = true, shape = RoundedCornerShape(10.dp),
+                    isError = expiryText.isNotBlank() && parseExpiryOrNull(expiryText) == null,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {
@@ -532,7 +581,8 @@ private fun AddEditRawMaterialDialog(
                             minThreshold = minText.toDoubleOrNull() ?: 5.0,
                             costPerUnit = costText.toDoubleOrNull() ?: 0.0,
                             sku = sku.trim(),
-                            note = note.trim()
+                            note = note.trim(),
+                            expiryDate = parseExpiryOrNull(expiryText)
                         )
                     )
                 },

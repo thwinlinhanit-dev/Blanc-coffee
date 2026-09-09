@@ -207,6 +207,27 @@ fun EntryDialog(
     }
     var sku by remember { mutableStateOf(existingProduct?.sku ?: "") }
     var productDescription by remember { mutableStateOf(existingProduct?.description ?: "") }
+    var expiryText by remember {
+        mutableStateOf(
+            existingProduct?.expiryDate?.let {
+                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                    .format(java.util.Date(it))
+            } ?: ""
+        )
+    }
+
+    /** Parses an optional YYYY-MM-DD date; null when blank. */
+    fun parseExpiryOrNull(text: String): Long? {
+        val t = text.trim()
+        if (t.isEmpty()) return null
+        return try {
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            fmt.isLenient = false
+            fmt.parse(t)?.time
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     // --- Validation Error States ---
     var hasAttemptedSubmit by remember { mutableStateOf(false) }
@@ -277,7 +298,8 @@ fun EntryDialog(
                     productStockValidationResult == null &&
                     productCostValidationResult == null &&
                     productSellingPriceValidationResult == null &&
-                    productMinThresholdValidationResult == null
+                    productMinThresholdValidationResult == null &&
+                    (expiryText.isBlank() || parseExpiryOrNull(expiryText) != null)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -820,6 +842,29 @@ fun EntryDialog(
                                         .testTag("entry_product_desc_input")
                                 )
                             }
+
+                            // Expiry date (optional, YYYY-MM-DD)
+                            item {
+                                val expiryInvalid = hasAttemptedSubmit &&
+                                    expiryText.isNotBlank() && parseExpiryOrNull(expiryText) == null
+                                OutlinedTextField(
+                                    value = expiryText,
+                                    onValueChange = { expiryText = it },
+                                    label = { Text("Expiry Date (optional)") },
+                                    placeholder = { Text("YYYY-MM-DD, e.g. 2026-12-31") },
+                                    singleLine = true,
+                                    isError = expiryInvalid,
+                                    supportingText = if (expiryInvalid) {
+                                        { Text("Use YYYY-MM-DD or leave blank", color = MaterialTheme.colorScheme.error) }
+                                    } else {
+                                        { Text("Leave blank for non-perishables") }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("entry_expiry_input")
+                                )
+                            }
                         }
                     }
                 }
@@ -898,7 +943,8 @@ fun EntryDialog(
                                                     sellingPrice = selling,
                                                     minStockThreshold = minThreshold,
                                                     sku = generatedSku,
-                                                    description = productDescription.trim()
+                                                    description = productDescription.trim(),
+                                                    expiryDate = parseExpiryOrNull(expiryText)
                                                 )
                                             )
                                         )

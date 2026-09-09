@@ -22,12 +22,24 @@ no cloud sync, no authentication, no AI features, no network permissions.
 - Time-period filters: Today - 7 Days - 30 Days - All Time
 - Category sales breakdown (Coffee / Green Tea / Macadamia) with units sold & revenue share
 - Live inventory alert banner for low-stock and out-of-stock products
+- **Expiry banner** for expired / expiring-this-week products and raw ingredients
+- **7-day sales trend chart** (net revenue per day) with week total
+- **Day close-out report**: net sales, cash in/out, per-method split, top sellers,
+  raw used, tabs opened/collected/outstanding — with one-tap shareable text
+- **Backup card**: export the whole database to a versioned JSON file, restore it
+  here or on a new phone (fully offline, no permissions needed)
 - Recent activity feed (orders + finance entries)
 
 ### 🧾 Orders
 - Full order lifecycle: `PENDING → PREPARING → COMPLETED` (plus `CANCELLED`)
 - Real-time stock deduction when an order is created
 - Payment tracking: `PAID / UNPAID` with cash / card / mobile payment methods
+- **Credit tabs** — UNPAID orders stay open; **Collect** records partial or full
+  payments (over-payment rejected), and settling in full flips the order to PAID
+  with exactly one income entry. Customer directory shows each customer's open
+  **Owes** balance.
+- **Discounts / promos** — optional MMK-off amount + reason per order; income,
+  receipts and reports always use the net (gross − discount, never negative)
 - **Idempotent income recording** — an order can never produce two income entries
 - Cancelling an order restores exact stock quantities and, if it was paid,
   automatically records a compensating **refund** transaction
@@ -47,6 +59,8 @@ no cloud sync, no authentication, no AI features, no network permissions.
 - Quick stock adjuster, full restock flow (validated quantity > 0, cost ≥ 0) that
   automatically logs a `RESTOCKING` expense transaction
 - Edit / delete products (delete requires confirmation)
+- **Expiry dates** — optional `YYYY-MM-DD` per product and per raw ingredient;
+  expired (⛔) and expiring-this-week (⏳) badges on cards plus a dashboard banner
 - **Raw Materials tab** — track ingredients that go *into* products
   (e.g. raw macadamia kernels in bags, green coffee beans, matcha powder in kg):
   each card shows **Bought / Used / Remaining**, each **Buy** records the date,
@@ -89,18 +103,24 @@ com.blanccoffee.app
    (`IllegalArgumentException`, surfaced as a snackbar by the ViewModel).
 2. **Single income per order** — before inserting an `ORDER_SALE` income row, the
    repository checks `TransactionDao.countPositiveIncomeForOrder(orderId)`; income is
-   recorded when an order is created paid, when an unpaid order is completed, or when
-   payment is manually collected — never twice.
-3. **Cancel = restore + refund** — cancelling restores each `OrderItem`'s exact quantity
+   recorded when an order is created paid, when a tab is settled in full, or when
+   payment is manually collected — never twice. Income is always the **net**
+   (gross − discount).
+3. **Tabs stay open** — completing an UNPAID order does NOT mark it paid; the tab
+   stays collectible (partial payments allowed, over-payment rejected) until the
+   net is covered.
+4. **Cancel = restore + refund** — cancelling restores each `OrderItem`'s exact quantity
    back to stock. If the order was paid, a compensating **negative-income refund
    transaction** (same `referenceOrderId`, category `ORDER_REFUND`) is inserted exactly
    once, keeping the ledger net-accurate.
-4. **Robust order numbers** — derived from `MAX(numeric suffix of ORD-*)` instead of row
+5. **Robust order numbers** — derived from `MAX(numeric suffix of ORD-*)` instead of row
    counts, with a uniqueness re-check loop.
-5. **Raw ledger integrity** — manual Use rejects quantities above remaining stock;
+6. **Raw ledger integrity** — manual Use rejects quantities above remaining stock;
    auto-deduct on orders clamps at zero (never negative) and always writes a dated
    `USAGE` row, so Bought − Used always reconciles with Remaining.
-6. **Smart seeding** — sample data (MMK prices, Myanmar customer names, a realistic mix
+7. **Backup discipline** — restore validates the app tag + version and runs atomically;
+   a corrupt file never leaves a half-restored database.
+8. **Smart seeding** — sample data (MMK prices, Myanmar customer names, a realistic mix
    of healthy and low-stock items) is only inserted when the product table is completely
    empty; real shop data is never wiped.
 
@@ -126,10 +146,12 @@ environment variables (falls back to `my-upload-key.jks` in the project root).
 
 ## Notes & limitations
 
-- Database schema is v2 (`raw_materials`, `raw_movements`, `product_recipes` added via
-  `MIGRATION_1_2`, so v1 shop data is preserved on upgrade; `fallbackToDestructiveMigration`
-  remains only as a last-resort safety net).
-- Single-device, single-user: no staff accounts/PIN, no backup/restore yet.
-- Receipts/slips now ship in-app (text + share). Barcode scanning, daily/shift summary,
-  staff PINs, backup/restore and sales-trend charts are planned future enhancements.
+- Database schema is v3 (`customer_payments` + order discount columns + product/raw
+  expiry columns, via `MIGRATION_2_3`; v2 added the raw-material tables via
+  `MIGRATION_1_2`. All migrations are additive, so real shop data is preserved on
+  upgrade; `fallbackToDestructiveMigration` remains only as a last-resort safety net).
+- Single-device, single-user: no staff accounts/PIN yet (backup/restore covers device
+  loss). All data stays offline on the device.
+- Receipts/slips ship in-app (text + share). Barcode scanning and staff PINs are
+  planned future enhancements.
 

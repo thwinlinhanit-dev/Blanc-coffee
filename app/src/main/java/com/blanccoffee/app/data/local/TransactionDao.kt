@@ -52,4 +52,7 @@ interface TransactionDao {
 
     @Query("DELETE FROM transactions")
     suspend fun deleteAllTransactions()
+
+    @Query("SELECT * FROM transactions ORDER BY id ASC")
+    suspend fun getAllTransactionsOnce(): List<Transaction>
 }

@@ -7,6 +7,9 @@ import com.blanccoffee.app.data.di.DatabaseModule
 import com.blanccoffee.app.data.local.AppDatabase
 import com.blanccoffee.app.data.model.CategorySalesStat
 import com.blanccoffee.app.data.model.CustomerOrder
+import com.blanccoffee.app.data.model.CustomerPayment
+import com.blanccoffee.app.data.model.DailyCloseout
+import com.blanccoffee.app.data.model.DayRevenue
 import com.blanccoffee.app.data.model.OrderStatus
 import com.blanccoffee.app.data.model.OrderWithItems
 import com.blanccoffee.app.data.model.PaymentMethod
@@ -16,6 +19,9 @@ import com.blanccoffee.app.data.model.ProductCategory
 import com.blanccoffee.app.data.model.ProductRecipe
 import com.blanccoffee.app.data.model.RawMaterial
 import com.blanccoffee.app.data.model.RawMaterialMovement
+import com.blanccoffee.app.data.model.computeCloseout
+import com.blanccoffee.app.data.model.computeRevenueTrend
+import com.blanccoffee.app.data.model.startOfDay
 import com.blanccoffee.app.data.model.SalesPerformanceSummary
 import com.blanccoffee.app.data.model.TimePeriodFilter
 import com.blanccoffee.app.data.model.Transaction
@@ -99,6 +105,28 @@ class ShopViewModel(application: Application) : AndroidViewModel(application) {
 
     val recipes: StateFlow<List<ProductRecipe>> = repository.allRecipes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val payments: StateFlow<List<CustomerPayment>> = repository.allPayments
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Today's close-out Z-report, recomputed whenever orders/ledger/stock change. */
+    val closeoutToday: StateFlow<DailyCloseout?> = combine(
+        orders,
+        transactions,
+        rawMovements,
+        rawMaterials,
+        payments
+    ) { ords, txs, mvs, raws, pays ->
+        val now = System.currentTimeMillis()
+        val start = startOfDay(now)
+        val paidBy = pays.groupBy { it.orderId }.mapValues { (_, list) -> list.sumOf { it.amount } }
+        computeCloseout(start, start + 24 * 3600 * 1000L, ords, txs, mvs, raws, pays, paidBy)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** Net revenue per day for the last 7 days (oldest → newest) for the trend chart. */
+    val weeklyTrend: StateFlow<List<DayRevenue>> = combine(orders) { ords ->
+        computeRevenueTrend(System.currentTimeMillis(), 7, ords[0])
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val selectedTimePeriod = MutableStateFlow(TimePeriodFilter.TODAY)
     val inventoryCategoryFilter = MutableStateFlow<ProductCategory?>(null)
@@ -210,8 +238,10 @@ class ShopViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Creates a customer order with real-time stock deduction.
      * Rejects (via [writeError]) any order whose quantities exceed available stock.
-     * [onSuccess] receives the freshly created [CustomerOrder] (with its generated number)
-     * and only runs after the order was persisted, so callers can show a receipt.
+     * [discountAmount] is clamped to the gross inside the repository; income and
+     * receipts always use the net. [onSuccess] receives the freshly created
+     * [CustomerOrder] (with its generated number) and only runs after the order
+     * was persisted, so callers can show a receipt.
      */
     fun createCustomerOrder(
         customerName: String,
@@ -220,6 +250,8 @@ class ShopViewModel(application: Application) : AndroidViewModel(application) {
         paymentStatus: PaymentStatus,
         paymentMethod: PaymentMethod,
         items: List<Pair<Product, Int>>,
+        discountAmount: Double = 0.0,
+        discountReason: String = "",
         onSuccess: (CustomerOrder) -> Unit = {}
     ) {
         viewModelScope.launch {
@@ -231,7 +263,9 @@ class ShopViewModel(application: Application) : AndroidViewModel(application) {
                     customerNote = customerNote,
                     paymentStatus = paymentStatus,
                     paymentMethod = paymentMethod,
-                    items = items
+                    items = items,
+                    discountAmount = discountAmount,
+                    discountReason = discountReason
                 )
                 onSuccess(created)
             } catch (e: IllegalArgumentException) {
@@ -354,6 +388,58 @@ class ShopViewModel(application: Application) : AndroidViewModel(application) {
 
     fun movementsForMaterial(materialId: Long) =
         repository.getMovementsForMaterial(materialId)
+
+    /**
+     * Records a cash-in against an UNPAID tab order (partial or full).
+     * Over-payment is rejected via [writeError]; settling in full flips the
+     * order to PAID and writes the single income row.
+     */
+    fun recordCustomerPayment(
+        orderId: Long,
+        amount: Double,
+        method: PaymentMethod,
+        note: String = "",
+        onSuccess: (remainingDue: Double) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _isWriting.value = true
+            try {
+                val due = repository.recordCustomerPayment(orderId, amount, method, note)
+                onSuccess(due)
+            } catch (e: IllegalArgumentException) {
+                _writeError.value = e.message ?: "Invalid input"
+            } catch (e: Exception) {
+                _writeError.value = e.message ?: "Something went wrong. Please try again."
+            } finally {
+                _isWriting.value = false
+            }
+        }
+    }
+
+    /**
+     * Exports the whole database as a versioned JSON string.
+     * [onDone] receives the JSON (caller writes/shares the file).
+     */
+    fun exportBackup(onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            _isWriting.value = true
+            try {
+                onDone(repository.exportBackup())
+            } catch (e: Exception) {
+                _writeError.value = e.message ?: "Backup failed. Please try again."
+            } finally {
+                _isWriting.value = false
+            }
+        }
+    }
+
+    /** Suspending export for file-picker flows (errors throw to the caller). */
+    suspend fun exportBackupNow(): String = repository.exportBackup()
+
+    /** Restores the database from an [exportBackup] JSON string (atomic). */
+    fun importBackup(json: String, onSuccess: () -> Unit = {}) = launchWrite(onSuccess) {
+        repository.importBackup(json)
+    }
 
     // Finance actions
 

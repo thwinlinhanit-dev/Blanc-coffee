@@ -113,7 +113,9 @@ data class CustomerProfile(
     val orderCount: Int,
     val totalSpent: Double,
     val lastOrderTime: Long,
-    val latestNote: String
+    val latestNote: String,
+    /** Still-owed across open (UNPAID, non-cancelled) tab orders. */
+    val outstanding: Double = 0.0
 )
 
 /** Everything needed to render the order slip for a just-created order. */
@@ -141,6 +143,7 @@ fun OrdersScreen(
 ) {
     val orders by viewModel.orders.collectAsState()
     val products by viewModel.products.collectAsState()
+    val payments by viewModel.payments.collectAsState()
     val selectedStatusFilter by viewModel.orderStatusFilter.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Orders, 1: Customers
@@ -148,6 +151,13 @@ fun OrdersScreen(
     var showCreateDialog by remember { mutableStateOf(initialOpenCreateDialog) }
     var prefillCustomerName by remember { mutableStateOf("") }
     var prefillCustomerPhone by remember { mutableStateOf("") }
+    /** Tab order collecting a (partial or full) payment, or null. */
+    var paymentOrder by remember { mutableStateOf<OrderWithItems?>(null) }
+
+    /** orderId -> total paid so far (credit-tab ledger). */
+    val paidByOrder = remember(payments) {
+        payments.groupBy { it.orderId }.mapValues { (_, list) -> list.sumOf { it.amount } }
+    }
     /** Order slip to show right after a successful order creation, or null. */
     var pendingReceipt by remember { mutableStateOf<PendingReceipt?>(null) }
     /** Order whose receipt the staff asked to re-share from the order card, or null. */
@@ -155,7 +165,7 @@ fun OrdersScreen(
     var orderToCancel by remember { mutableStateOf<OrderWithItems?>(null) }
 
     // Aggregate unique customer profiles from order histories
-    val customerProfiles = remember(orders) {
+    val customerProfiles = remember(orders, payments) {
         orders
             .groupBy {
                 val name = it.order.customerName.trim().ifBlank { "Walk-in Customer" }
@@ -167,13 +177,20 @@ fun OrdersScreen(
                 val name = firstOrder.order.customerName.trim().ifBlank { "Walk-in Customer" }
                 val phone = customerOrders.map { it.order.customerPhone.trim() }.firstOrNull { it.isNotBlank() } ?: ""
                 val latestNote = customerOrders.map { it.order.customerNote.trim() }.firstOrNull { it.isNotBlank() } ?: ""
+                val outstanding = customerOrders
+                    .filter {
+                        it.order.status != OrderStatus.CANCELLED.name &&
+                            it.order.paymentStatus != PaymentStatus.PAID.name
+                    }
+                    .sumOf { (it.order.netAmount - (paidByOrder[it.order.id] ?: 0.0)).coerceAtLeast(0.0) }
                 CustomerProfile(
                     name = name,
                     phone = phone,
                     orderCount = customerOrders.size,
                     totalSpent = customerOrders.sumOf { it.order.totalAmount },
                     lastOrderTime = customerOrders.maxOf { it.order.createdAt },
-                    latestNote = latestNote
+                    latestNote = latestNote,
+                    outstanding = outstanding
                 )
             }
             .sortedByDescending { it.totalSpent }
@@ -371,10 +388,13 @@ fun OrdersScreen(
                             items = filteredOrders,
                             key = { it.order.id }
                         ) { orderWithItems ->
+                            val due = (orderWithItems.order.netAmount -
+                                (paidByOrder[orderWithItems.order.id] ?: 0.0)).coerceAtLeast(0.0)
                             OrderItemCard(
                                 orderWithItems = orderWithItems,
+                                amountDue = due,
                                 onAdvanceStatus = { viewModel.advanceOrderStatus(orderWithItems) },
-                                onMarkPaid = { viewModel.updatePaymentStatus(orderWithItems.order.id, PaymentStatus.PAID) },
+                                onCollectPayment = { paymentOrder = orderWithItems },
                                 onCancelOrder = { orderToCancel = orderWithItems },
                                 onShowReceipt = { receiptOrder = orderWithItems }
                             )
@@ -451,6 +471,23 @@ fun OrdersScreen(
         )
     }
 
+    // Collect (partial or full) payment against an UNPAID tab order
+    if (paymentOrder != null) {
+        val target = paymentOrder!!
+        val due = (target.order.netAmount -
+            (paidByOrder[target.order.id] ?: 0.0)).coerceAtLeast(0.0)
+        CollectPaymentDialog(
+            order = target.order,
+            amountDue = due,
+            onDismiss = { paymentOrder = null },
+            onConfirm = { amount, method, note ->
+                viewModel.recordCustomerPayment(target.order.id, amount, method, note) {
+                    paymentOrder = null
+                }
+            }
+        )
+    }
+
     // Create Order Modal Dialog
     if (showCreateDialog) {
         CreateOrderDialog(
@@ -459,7 +496,7 @@ fun OrdersScreen(
                 showCreateDialog = false
                 onDialogDismissed()
             },
-            onCreateOrder = { name, phone, note, payStatus, payMethod, items ->
+            onCreateOrder = { name, phone, note, payStatus, payMethod, discount, discountReason, items ->
                 viewModel.createCustomerOrder(
                     customerName = name,
                     customerPhone = phone,
@@ -467,6 +504,8 @@ fun OrdersScreen(
                     paymentStatus = payStatus,
                     paymentMethod = payMethod,
                     items = items,
+                    discountAmount = discount,
+                    discountReason = discountReason,
                     onSuccess = { created ->
                         pendingReceipt = PendingReceipt(
                             order = created,
@@ -508,8 +547,10 @@ fun OrdersScreen(
 @Composable
 private fun OrderItemCard(
     orderWithItems: OrderWithItems,
+    /** Still-owed on this order (0 when PAID). */
+    amountDue: Double = 0.0,
     onAdvanceStatus: () -> Unit,
-    onMarkPaid: () -> Unit,
+    onCollectPayment: () -> Unit,
     onCancelOrder: () -> Unit,
     onShowReceipt: () -> Unit,
     modifier: Modifier = Modifier
@@ -656,7 +697,7 @@ private fun OrderItemCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Total and payment method footer
+            // Total and payment method footer (net of any discount)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -673,14 +714,31 @@ private fun OrderItemCard(
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
+                    if (order.paymentStatus != PaymentStatus.PAID.name && amountDue > 0) {
+                        Text(
+                            text = "Owes ${formatCurrency(amountDue)}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = OutcomeRed
+                        )
+                    }
                 }
 
-                Text(
-                    text = formatCurrency(order.totalAmount),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    if (order.discountAmount > 0) {
+                        Text(
+                            text = "${formatCurrency(order.totalAmount)} − ${formatCurrency(order.discountAmount)}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = formatCurrency(order.netAmount),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             // Real-time Action Buttons
@@ -739,11 +797,11 @@ private fun OrderItemCard(
                         }
                     }
 
-                    if (order.paymentStatus != PaymentStatus.PAID.name && order.status != OrderStatus.COMPLETED.name) {
+                    if (order.paymentStatus != PaymentStatus.PAID.name) {
                         OutlinedButton(
-                            onClick = onMarkPaid,
+                            onClick = onCollectPayment,
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.testTag("btn_mark_paid_${order.orderNumber}")
+                            modifier = Modifier.testTag("btn_collect_${order.orderNumber}")
                         ) {
                             Text("Collect Pay", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
@@ -778,6 +836,8 @@ private fun CreateOrderDialog(
         customerNote: String,
         paymentStatus: PaymentStatus,
         paymentMethod: PaymentMethod,
+        discountAmount: Double,
+        discountReason: String,
         items: List<Pair<Product, Int>>
     ) -> Unit
 ) {
@@ -786,6 +846,8 @@ private fun CreateOrderDialog(
     var customerNote by remember { mutableStateOf("") }
     var selectedPaymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
     var selectedPaymentStatus by remember { mutableStateOf(PaymentStatus.PAID) }
+    var discountText by remember { mutableStateOf("") }
+    var discountReason by remember { mutableStateOf("") }
 
     // Map of productId to quantity
     val itemQuantities = remember { mutableStateMapOf<Long, Int>() }
@@ -804,6 +866,8 @@ private fun CreateOrderDialog(
     }
 
     val totalAmount = selectedItemsWithProducts.sumOf { (prod, qty) -> prod.sellingPrice * qty }
+    val discountAmount = discountText.toDoubleOrNull()?.coerceIn(0.0, totalAmount) ?: 0.0
+    val netAmount = totalAmount - discountAmount
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -1014,7 +1078,40 @@ private fun CreateOrderDialog(
                             FilterChip(
                                 selected = selectedPaymentStatus == PaymentStatus.UNPAID,
                                 onClick = { selectedPaymentStatus = PaymentStatus.UNPAID },
-                                label = { Text("Unpaid (On Pickup)") }
+                                label = { Text("Unpaid (Tab)") }
+                            )
+                        }
+                    }
+
+                    // Discount / promo (optional, recorded in the ledger)
+                    item {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Discount (optional)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = discountText,
+                                onValueChange = { discountText = it.filter { c -> c.isDigit() || c == '.' } },
+                                label = { Text("MMK off") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("discount_amount_input")
+                            )
+                            OutlinedTextField(
+                                value = discountReason,
+                                onValueChange = { discountReason = it },
+                                label = { Text("Reason") },
+                                placeholder = { Text("Regular, promo…") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -1032,8 +1129,15 @@ private fun CreateOrderDialog(
                 ) {
                     Column {
                         Text("Total Amount", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (discountAmount > 0) {
+                            Text(
+                                text = "${formatCurrency(totalAmount)} − ${formatCurrency(discountAmount)}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Text(
-                            text = formatCurrency(totalAmount),
+                            text = formatCurrency(netAmount),
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 22.sp,
                             color = MaterialTheme.colorScheme.primary
@@ -1048,6 +1152,8 @@ private fun CreateOrderDialog(
                                 customerNote,
                                 selectedPaymentStatus,
                                 selectedPaymentMethod,
+                                discountAmount,
+                                discountReason,
                                 selectedItemsWithProducts
                             )
                         },
@@ -1202,9 +1308,185 @@ private fun buildReceiptText(
         appendLine(namePart.take(31).padEnd(31) + amount)
     }
     appendLine(div)
-    appendLine("TOTAL    : ${formatCurrency(order.totalAmount)}")
+    appendLine("Subtotal : ${formatCurrency(order.totalAmount)}")
+    if (order.discountAmount > 0) {
+        appendLine("Discount : -${formatCurrency(order.discountAmount)}" +
+            (if (order.discountReason.isNotBlank()) " (${order.discountReason})" else ""))
+    }
+    appendLine("TOTAL    : ${formatCurrency(order.netAmount)}")
     appendLine("Payment  : ${paymentMethodName.replace("_", " ")}" +
         " (${paymentStatusName.uppercase()})")
     appendLine(div)
     append("  Thank you! Please come again.")
+}
+
+/**
+ * Collects a partial or full payment against an UNPAID tab order.
+ * Amount defaults to the full due; settling in full flips the order to PAID.
+ */
+@Composable
+private fun CollectPaymentDialog(
+    order: CustomerOrder,
+    amountDue: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (amount: Double, method: PaymentMethod, note: String) -> Unit
+) {
+    var amountText by remember(amountDue) {
+        mutableStateOf(
+            if (amountDue == kotlin.math.floor(amountDue)) "%.0f".format(java.util.Locale.US, amountDue)
+            else amountDue.toString()
+        )
+    }
+    var selectedMethod by remember { mutableStateOf(PaymentMethod.CASH) }
+    var note by remember { mutableStateOf("") }
+
+    val amount = amountText.toDoubleOrNull() ?: 0.0
+    val valid = amount > 0 && amount <= amountDue + 0.009
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Collect: #${order.orderNumber}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Due now: ${formatCurrency(amountDue)}" +
+                        (if (order.discountAmount > 0) " (net of ${formatCurrency(order.discountAmount)} discount)" else ""),
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Amount received (MMK)") },
+                    supportingText = {
+                        if (!valid) Text(
+                            "Enter 1 – ${formatCurrency(amountDue)}",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    },
+                    isError = !valid,
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("collect_amount_input")
+                )
+                Text("Method", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    PaymentMethod.entries.forEach { method ->
+                        FilterChip(
+                            selected = selectedMethod == method,
+                            onClick = { selectedMethod = method },
+                            label = { Text(method.displayName.substringBefore(" /"), fontSize = 11.sp) }
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("Note (optional)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(amount, selectedMethod, note) },
+                enabled = valid,
+                colors = ButtonDefaults.buttonColors(containerColor = CoffeePrimary),
+                modifier = Modifier.testTag("confirm_collect_btn")
+            ) {
+                Text(if (amount + 0.009 >= amountDue) "Settle in Full" else "Record Payment")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+/**
+ * Customer directory card (was referenced but never defined — this also fixes
+ * the missing symbol). Shows lifetime stats plus the open tab balance.
+ */
+@Composable
+private fun CustomerCard(
+    customer: CustomerProfile,
+    onNewOrder: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("customer_card_${customer.name}_${customer.phone}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = customer.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    if (customer.phone.isNotBlank()) {
+                        Text(
+                            text = customer.phone,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (customer.outstanding > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = OutcomeRed.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "Owes ${formatCurrency(customer.outstanding)}",
+                            color = OutcomeRed,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${customer.orderCount} orders • ${formatCurrency(customer.totalSpent)} total • last ${formatDateTime(customer.lastOrderTime)}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = onNewOrder,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = CoffeePrimary),
+                    modifier = Modifier.testTag("btn_customer_new_order")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Order", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
 }

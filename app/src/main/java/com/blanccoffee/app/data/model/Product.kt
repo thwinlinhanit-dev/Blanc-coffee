@@ -22,6 +22,8 @@ data class Product(
     val minStockThreshold: Int = 5,
     val sku: String = "",
     val description: String = "",
+    /** Epoch millis of expiry, or null when the product doesn't expire. */
+    val expiryDate: Long? = null,
     val lastUpdated: Long = System.currentTimeMillis()
 ) {
     val isLowStock: Boolean

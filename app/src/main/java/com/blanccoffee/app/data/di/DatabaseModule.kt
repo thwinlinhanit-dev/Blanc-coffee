@@ -2,6 +2,7 @@ package com.blanccoffee.app.data.di
 
 import android.content.Context
 import com.blanccoffee.app.data.local.AppDatabase
+import com.blanccoffee.app.data.local.CustomerPaymentDao
 import com.blanccoffee.app.data.local.ExpenseDao
 import com.blanccoffee.app.data.local.IncomeDao
 import com.blanccoffee.app.data.local.InventoryDao
@@ -85,6 +86,13 @@ object DatabaseModule {
     }
 
     /**
+     * Provides access to CustomerPaymentDao (credit-tab payments).
+     */
+    fun provideCustomerPaymentDao(context: Context): CustomerPaymentDao {
+        return provideDatabase(context).customerPaymentDao()
+    }
+
+    /**
      * Provides the unified ShopRepository wired with the database handle and the
      * individual DAOs it actually needs (Product, Inventory, Order, Transaction).
      * Income/expense queries run through TransactionDao directly — no anonymous
@@ -98,7 +106,8 @@ object DatabaseModule {
                 inventoryDao = provideInventoryDao(context),
                 orderDao = provideOrderDao(context),
                 transactionDao = provideTransactionDao(context),
-                rawMaterialDao = provideRawMaterialDao(context)
+                rawMaterialDao = provideRawMaterialDao(context),
+                customerPaymentDao = provideCustomerPaymentDao(context)
             ).also {
                 shopRepository = it
             }

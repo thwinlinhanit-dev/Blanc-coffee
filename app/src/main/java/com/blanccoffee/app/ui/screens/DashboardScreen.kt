@@ -79,12 +79,18 @@ fun DashboardScreen(
     onNavigateToOrders: (openNewOrderDialog: Boolean) -> Unit,
     onNavigateToInventory: () -> Unit,
     onNavigateToFinance: (openExpenseDialog: Boolean) -> Unit,
+    onExportBackup: () -> Unit = {},
+    onPickBackupFile: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val performanceSummary by viewModel.performanceStats.collectAsState()
     val selectedPeriod by viewModel.selectedTimePeriod.collectAsState()
     val orders by viewModel.orders.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
+    val products by viewModel.products.collectAsState()
+    val rawMaterials by viewModel.rawMaterials.collectAsState()
+    val weeklyTrend by viewModel.weeklyTrend.collectAsState()
+    val closeoutToday by viewModel.closeoutToday.collectAsState()
 
     val recentOrders = orders.take(3)
     val recentTransactions = transactions.take(4)
@@ -260,6 +266,15 @@ fun DashboardScreen(
             )
         }
 
+        // Expiry warnings (perishable products + raw ingredients)
+        item {
+            ExpiryBanner(
+                products = products,
+                rawMaterials = rawMaterials,
+                onClick = onNavigateToInventory
+            )
+        }
+
         // Fast Action Buttons Row
         item {
             Row(
@@ -298,6 +313,24 @@ fun DashboardScreen(
         // Sales Performance breakdown
         item {
             CategoryPerformanceCard(categoryStats = performanceSummary.categoryStats)
+        }
+
+        // 7-day sales trend
+        item {
+            SalesTrendCard(trend = weeklyTrend)
+        }
+
+        // Day close-out report
+        item {
+            CloseoutCard(closeout = closeoutToday)
+        }
+
+        // Offline backup / restore
+        item {
+            BackupCard(
+                onExport = onExportBackup,
+                onImport = onPickBackupFile
+            )
         }
 
         // Recent Orders Section
@@ -436,7 +469,7 @@ private fun DashboardOrderRow(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = formatCurrency(orderWithItems.order.totalAmount),
+                    text = formatCurrency(orderWithItems.order.netAmount),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                     color = MaterialTheme.colorScheme.primary

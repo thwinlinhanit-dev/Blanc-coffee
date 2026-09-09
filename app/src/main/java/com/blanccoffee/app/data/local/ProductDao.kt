@@ -50,6 +50,9 @@ interface ProductDao {
     @Query("SELECT * FROM products LIMIT 1")
     suspend fun getFirstProduct(): Product?
 
+    @Query("SELECT * FROM products ORDER BY id ASC")
+    suspend fun getAllProductsOnce(): List<Product>
+
     @Query("DELETE FROM products")
     suspend fun deleteAllProducts()
 }

@@ -31,6 +31,8 @@ data class RawMaterial(
     val costPerUnit: Double = 0.0,
     val sku: String = "",
     val note: String = "",
+    /** Epoch millis of expiry, or null when the ingredient doesn't expire. */
+    val expiryDate: Long? = null,
     val lastUpdated: Long = System.currentTimeMillis()
 ) {
     val isLowStock: Boolean

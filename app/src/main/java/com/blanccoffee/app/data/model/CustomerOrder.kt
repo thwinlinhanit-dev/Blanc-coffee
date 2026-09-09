@@ -43,6 +43,13 @@ data class CustomerOrder(
     val paymentMethod: String = PaymentMethod.CASH.name,
     val totalAmount: Double,
     val totalCost: Double = 0.0,
+    /** Flat discount (MMK) granted at sale time; income is recorded net of this. */
+    val discountAmount: Double = 0.0,
+    val discountReason: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val completedAt: Long? = null
-)
+) {
+    /** What the customer actually owes for this order (never negative). */
+    val netAmount: Double
+        get() = (totalAmount - discountAmount).coerceAtLeast(0.0)
+}

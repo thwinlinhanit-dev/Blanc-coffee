@@ -1095,7 +1095,7 @@
       products: [
         { id: 1, name: "Single-Origin Ethiopian Yirgacheffe", category: "COFFEE", stock: 28, unit: "bags", cost: 11000, price: 20000, minStock: 8, sku: "COF-ETH-250", desc: "Light roast with floral notes of jasmine, bergamot, and sweet citrus finish. 250g whole bean." },
         { id: 2, name: "Dark Espresso Roast Beans", category: "COFFEE", stock: 15, unit: "bags", cost: 9500, price: 18000, minStock: 6, sku: "COF-ESP-500", desc: "Bold, velvety blend of Colombia & Sumatra with notes of dark chocolate and toasted almond. 500g." },
-        { id: 3, name: "Nitro Cold Brew Ready-to-Drink", category: "COFFEE", stock: 4, unit: "cans", cost: 3200, price: 6500, minStock: 10, sku: "COF-NCB-330", desc: "Smooth, micro-infused cold brew draft in 330ml recyclable sleek cans." },
+        { id: 3, name: "Nitro Cold Brew Ready-to-Drink", category: "COFFEE", stock: 4, unit: "cans", cost: 3200, price: 6500, minStock: 10, sku: "COF-NCB-330", desc: "Smooth, micro-infused cold brew draft in 330ml recyclable sleek cans.", expiryDate: Date.now() + 20 * 86400000 },
         { id: 4, name: "Artisan Drip Coffee Pouches (10pk)", category: "COFFEE", stock: 22, unit: "boxes", cost: 7000, price: 14000, minStock: 5, sku: "COF-DRP-10", desc: "Single-serve pour-over filter bags filled with fresh medium roast specialty grind." },
         { id: 5, name: "Uji Ceremonial Grade Matcha", category: "GREEN_TEA", stock: 12, unit: "tins", cost: 22000, price: 42000, minStock: 5, sku: "TEA-MTC-050", desc: "First harvest stone-ground green tea from Kyoto, Japan. Vibrant jade color, rich umami." },
         { id: 6, name: "Organic Shizuoka Sencha", category: "GREEN_TEA", stock: 18, unit: "packs", cost: 8500, price: 17000, minStock: 6, sku: "TEA-SNC-100", desc: "Steamed high-grown loose green tea leaves with refreshing grassy sweetness and golden liquor. 100g." },
@@ -1176,7 +1176,7 @@
         { id: 101, name: "Raw Macadamia Kernels", unit: "bags", stock: 14, minStock: 4, costPerUnit: 95000, sku: "RAW-NUT-25KG", note: "25kg bags from Shan supplier" },
         { id: 102, name: "Green Coffee Beans (Arabica)", unit: "bags", stock: 22, minStock: 6, costPerUnit: 85000, sku: "RAW-COF-60KG", note: "60kg bags, Yirgacheffe + Espresso blend" },
         { id: 103, name: "Ceremonial Matcha Powder", unit: "kg", stock: 3.5, minStock: 2, costPerUnit: 380000, sku: "RAW-MTC-1KG", note: "Uji first-harvest, 1kg tins" },
-        { id: 104, name: "Wildflower Honey", unit: "bottles", stock: 2, minStock: 3, costPerUnit: 18000, sku: "RAW-HNY-1L", note: "For honey-glazed macadamias — reorder soon" },
+        { id: 104, name: "Wildflower Honey", unit: "bottles", stock: 2, minStock: 3, costPerUnit: 18000, sku: "RAW-HNY-1L", note: "For honey-glazed macadamias — reorder soon", expiryDate: Date.now() + 60 * 86400000 },
         { id: 105, name: "Kraft Pouches + Labels", unit: "pcs", stock: 480, minStock: 100, costPerUnit: 450, sku: "RAW-PKG-500", note: "Biodegradable pouches + eco seals" }
       ],
 
@@ -1203,7 +1203,10 @@
         { productId: 11, materialId: 104, qtyPerUnit: 0.1 },
         { productId: 12, materialId: 101, qtyPerUnit: 0.2 },
         { productId: 12, materialId: 103, qtyPerUnit: 0.02 }
-      ]
+      ],
+
+      // Credit-tab payments: partial/full cash-ins against UNPAID orders
+      payments: []
     };
 
     // Helper currency formatter for Myanmar Kyat (MMK)
@@ -1228,6 +1231,100 @@
       return STATE.rawMovements
         .filter(m => m.materialId === materialId && m.type === 'USAGE')
         .reduce((s, m) => s + Number(m.qty || 0), 0);
+    }
+
+    // --- Credit tabs / discounts / close-out helpers (mirror native repo) ---
+    function orderNet(order) {
+      return Math.max(0, (order.totalAmount || 0) - (order.discount || 0));
+    }
+
+    function paidForOrder(orderId) {
+      return STATE.payments
+        .filter(p => p.orderId === orderId)
+        .reduce((s, p) => s + Number(p.amount || 0), 0);
+    }
+
+    function amountDue(order) {
+      if (order.paymentStatus === 'PAID') return 0;
+      return Math.max(0, orderNet(order) - paidForOrder(order.id));
+    }
+
+    function formatDateOnly(ts) {
+      if (!ts) return '';
+      return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function expiryBadge(exp) {
+      if (!exp) return '';
+      const now = Date.now(), day = 86400000;
+      if (exp <= now) return { text: '⛔ Expired ' + formatDateOnly(exp), cls: 'stock-out' };
+      if (exp - now <= 7 * day) return { text: '⏳ Expires ' + formatDateOnly(exp), cls: 'stock-low' };
+      return { text: 'Expires ' + formatDateOnly(exp), cls: 'stock-healthy' };
+    }
+
+    function startOfDay(ts) {
+      const d = new Date(ts);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+
+    function computeCloseout(dayStart) {
+      const day = 86400000, dayEnd = dayStart + day;
+      const inDay = ts => ts >= dayStart && ts < dayEnd;
+      const dayOrders = STATE.orders.filter(o => inDay(o.timestamp) && o.status !== 'CANCELLED');
+      const gross = dayOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+      const discounts = dayOrders.reduce((s, o) => s + (o.discount || 0), 0);
+      const net = dayOrders.reduce((s, o) => s + orderNet(o), 0);
+      const income = STATE.transactions.filter(t => inDay(t.timestamp) && t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
+      const outcome = STATE.transactions.filter(t => inDay(t.timestamp) && t.type === 'OUTCOME').reduce((s, t) => s + t.amount, 0);
+      const byMethod = {};
+      dayOrders.filter(o => o.paymentStatus === 'PAID').forEach(o => {
+        byMethod[o.paymentMethod] = (byMethod[o.paymentMethod] || 0) + orderNet(o);
+      });
+      STATE.payments.filter(p => inDay(p.timestamp)).forEach(p => {
+        byMethod[p.method] = (byMethod[p.method] || 0) + p.amount;
+      });
+      const prodMap = {};
+      dayOrders.forEach(o => o.items.forEach(i => {
+        prodMap[i.productName] = prodMap[i.productName] || { qty: 0, rev: 0 };
+        prodMap[i.productName].qty += i.quantity;
+        prodMap[i.productName].rev += i.price * i.quantity;
+      }));
+      const topProducts = Object.entries(prodMap)
+        .map(([name, v]) => ({ name, qty: v.qty, rev: v.rev }))
+        .sort((a, b) => b.rev - a.rev).slice(0, 5);
+      const useMap = {};
+      STATE.rawMovements.filter(m => inDay(m.timestamp) && m.type === 'USAGE').forEach(m => {
+        useMap[m.materialId] = (useMap[m.materialId] || 0) + Number(m.qty || 0);
+      });
+      const rawUsedList = Object.entries(useMap).map(([id, qty]) => {
+        const m = STATE.rawMaterials.find(x => x.id === parseInt(id));
+        return m ? { name: m.name, unit: m.unit, qty } : null;
+      }).filter(Boolean).sort((a, b) => b.qty - a.qty);
+      const tabsOpened = dayOrders.filter(o => o.paymentStatus === 'UNPAID').reduce((s, o) => s + amountDue(o), 0);
+      const tabsCollected = STATE.payments.filter(p => inDay(p.timestamp)).reduce((s, p) => s + p.amount, 0);
+      const tabsOutstanding = STATE.orders
+        .filter(o => o.status !== 'CANCELLED' && o.paymentStatus === 'UNPAID')
+        .reduce((s, o) => s + amountDue(o), 0);
+      return {
+        dayStart, gross, discounts, net, income, outcome, netCash: income - outcome,
+        count: dayOrders.length, avg: dayOrders.length ? net / dayOrders.length : 0,
+        byMethod: Object.entries(byMethod).map(([m, a]) => ({ m, a })).sort((a, b) => b.a - a.a),
+        topProducts, rawUsedList, tabsOpened, tabsCollected, tabsOutstanding
+      };
+    }
+
+    function revenueTrend(days) {
+      const out = [];
+      const today = startOfDay(Date.now()), day = 86400000;
+      for (let back = days - 1; back >= 0; back--) {
+        const start = today - back * day;
+        const rev = STATE.orders
+          .filter(o => o.status !== 'CANCELLED' && o.timestamp >= start && o.timestamp < start + day)
+          .reduce((s, o) => s + orderNet(o), 0);
+        out.push({ label: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }), rev });
+      }
+      return out;
     }
 
     function formatTimeAgo(timestamp) {
@@ -1357,6 +1454,23 @@
       const matchaPct = Math.round((matchaRevenue / totalCatRev) * 100);
       const nutPct = 100 - coffeePct - matchaPct;
 
+      // Expiry warnings
+      const nowTs = Date.now(), weekMs = 7 * 86400000;
+      const expiredItems = [
+        ...STATE.products.filter(p => p.expiryDate && p.expiryDate <= nowTs),
+        ...STATE.rawMaterials.filter(m => m.expiryDate && m.expiryDate <= nowTs)
+      ];
+      const expiringItems = [
+        ...STATE.products.filter(p => p.expiryDate && p.expiryDate > nowTs && p.expiryDate <= nowTs + weekMs),
+        ...STATE.rawMaterials.filter(m => m.expiryDate && m.expiryDate > nowTs && m.expiryDate <= nowTs + weekMs)
+      ];
+
+      // Trend + close-out
+      const trend = revenueTrend(7);
+      const trendMax = Math.max(1, ...trend.map(d => d.rev));
+      const trendTotal = trend.reduce((s, d) => s + d.rev, 0);
+      const co = computeCloseout(startOfDay(Date.now()));
+
       container.innerHTML = `
         <!-- Period Filters -->
         <div class="chips-row">
@@ -1441,6 +1555,72 @@
           </div>
         </div>
 
+        <!-- Expiry Banner -->
+        ${(expiredItems.length > 0 || expiringItems.length > 0) ? `
+          <div class="alert-banner" onclick="switchTab('inventory')">
+            <div class="alert-content">
+              <span class="alert-icon">${expiredItems.length > 0 ? '⛔' : '⏳'}</span>
+              <div class="alert-text">
+                <h4>${expiredItems.length > 0 ? expiredItems.length + ' expired' : ''}${expiredItems.length > 0 && expiringItems.length > 0 ? ' • ' : ''}${expiringItems.length > 0 ? expiringItems.length + ' expiring this week' : ''}</h4>
+                <p>${[...expiredItems, ...expiringItems].slice(0, 3).map(i => i.name.split(' ').slice(0, 2).join(' ')).join(', ')}</p>
+              </div>
+            </div>
+            <button class="alert-btn">Check</button>
+          </div>
+        ` : ''}
+
+        <!-- 7-Day Sales Trend -->
+        <div class="card">
+          <div class="section-head">
+            <h3>📈 7-Day Sales Trend</h3>
+            <span style="font-size:0.75rem; color:var(--shop-text-secondary);">${formatMMK(trendTotal)} this week</span>
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:6px; height:110px;">
+            ${trend.map(d => `
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+                <div title="${formatMMK(d.rev)}" style="width:100%; max-width:34px; height:${Math.max(4, Math.round((d.rev / trendMax) * 84))}px; border-radius:6px; background:${d.rev > 0 ? 'var(--coffee-primary-light)' : 'var(--shop-surface-variant)'};"></div>
+                <div style="font-size:0.65rem; color:var(--shop-text-secondary); margin-top:4px;">${d.label}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Day Close-Out -->
+        <div class="card">
+          <div class="section-head">
+            <h3>🧾 Day Close-Out</h3>
+            <button onclick="openCloseoutModal()">Full Report →</button>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; background:var(--shop-surface-variant); border-radius:8px; padding:10px;">
+            <div>
+              <div style="font-size:0.68rem; color:var(--shop-text-secondary);">NET SALES</div>
+              <div style="font-weight:800; font-size:0.92rem;">${formatMMK(co.net)}</div>
+            </div>
+            <div>
+              <div style="font-size:0.68rem; color:var(--income-green);">CASH IN</div>
+              <div style="font-weight:800; font-size:0.92rem;">+${formatMMK(co.income)}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.68rem; color:var(--outcome-red);">CASH OUT</div>
+              <div style="font-weight:800; font-size:0.92rem;">-${formatMMK(co.outcome)}</div>
+            </div>
+          </div>
+          ${co.tabsOutstanding > 0 ? `<div style="font-size:0.74rem; color:var(--warning-orange); font-weight:700; margin-top:6px;">📒 Tabs outstanding: ${formatMMK(co.tabsOutstanding)}</div>` : ''}
+        </div>
+
+        <!-- Backup & Restore -->
+        <div class="card">
+          <div class="section-head">
+            <h3>💾 Shop Data Backup</h3>
+          </div>
+          <p style="font-size:0.74rem; color:var(--shop-text-secondary);">All data lives on this device. Export a backup file regularly.</p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+            <button class="btn-primary-sm" style="padding:10px;" onclick="exportBackup()">Export Backup</button>
+            <button class="btn-action-sm" style="padding:10px;" onclick="document.getElementById('importBackupFile').click()">Restore Backup</button>
+            <input type="file" id="importBackupFile" accept=".json,application/json" style="display:none;" onchange="importBackupFile(this)">
+          </div>
+        </div>
+
         <!-- Recent Activity Feed -->
         <div class="section-head">
           <h3>Recent Activity</h3>
@@ -1458,8 +1638,8 @@
                 <span class="item-badge badge-${order.status.toLowerCase()}">${order.status}</span>
               </div>
               <div class="item-footer">
-                <span class="total-price">${formatMMK(order.totalAmount)}</span>
-                <span class="item-badge badge-${order.paymentStatus.toLowerCase()}">${order.paymentStatus} via ${order.paymentMethod}</span>
+                <span class="total-price">${formatMMK(orderNet(order))}</span>
+                <span class="item-badge badge-${order.paymentStatus.toLowerCase()}">${order.paymentStatus}${order.paymentStatus === 'UNPAID' && amountDue(order) > 0 ? ' • owes ' + formatMMK(amountDue(order)) : ''} via ${order.paymentMethod}</span>
               </div>
             </div>
           `).join('')}
@@ -1475,6 +1655,99 @@
     function filterLowStockInventory() {
       STATE.inventoryCategoryFilter = 'LOW_STOCK';
       switchTab('inventory');
+    }
+
+    // --- Day close-out report modal + share ---
+    function openCloseoutModal() {
+      const co = computeCloseout(startOfDay(Date.now()));
+      const dateStr = new Date(co.dayStart).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const lines = [
+        'BLANC COFFEE — DAY CLOSE-OUT', dateStr, '------------------------------',
+        `Orders: ${co.count}`, `Gross sales: ${formatMMK(co.gross)}`, `Discounts: -${formatMMK(co.discounts)}`,
+        `Net sales: ${formatMMK(co.net)}`, `Cash in (ledger): +${formatMMK(co.income)}`,
+        `Cash out (ledger): -${formatMMK(co.outcome)}`, `Net cash: ${formatMMK(co.netCash)}`,
+        '------------------------------',
+        ...co.byMethod.map(m => `${m.m}: ${formatMMK(m.a)}`),
+        '------------------------------',
+        ...co.topProducts.map(p => `${p.name} x${p.qty} = ${formatMMK(p.rev)}`),
+        '------------------------------',
+        `Tabs opened: ${formatMMK(co.tabsOpened)}`, `Tabs collected: ${formatMMK(co.tabsCollected)}`,
+        `Tabs outstanding: ${formatMMK(co.tabsOutstanding)}`
+      ];
+      window._closeoutText = lines.join('\n');
+      const html = `
+        <div class="modal-header">
+          <h3>Close-Out • ${dateStr}</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="background:var(--shop-surface-variant); border-radius:12px; padding:12px; display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.8rem;">
+          <div>Orders<br><strong>${co.count} (avg ${formatMMK(co.avg)})</strong></div>
+          <div>Net sales<br><strong>${formatMMK(co.net)}</strong></div>
+          <div>Cash in<br><strong style="color:var(--income-green);">+${formatMMK(co.income)}</strong></div>
+          <div>Cash out<br><strong style="color:var(--outcome-red);">-${formatMMK(co.outcome)}</strong></div>
+        </div>
+        ${co.byMethod.length ? `<div class="form-group"><label>By method</label>${co.byMethod.map(m => `<div style="display:flex; justify-content:space-between; font-size:0.8rem;"><span>${m.m}</span><strong>${formatMMK(m.a)}</strong></div>`).join('')}</div>` : ''}
+        ${co.topProducts.length ? `<div class="form-group"><label>Top sellers</label>${co.topProducts.map(p => `<div style="display:flex; justify-content:space-between; font-size:0.8rem;"><span>${p.name} x${p.qty}</span><strong>${formatMMK(p.rev)}</strong></div>`).join('')}</div>` : ''}
+        ${co.rawUsedList.length ? `<div class="form-group"><label>Raw used</label>${co.rawUsedList.map(r => `<div style="display:flex; justify-content:space-between; font-size:0.8rem;"><span>${r.name}</span><strong>${r.qty} ${r.unit}</strong></div>`).join('')}</div>` : ''}
+        <div class="form-group"><label>Tabs</label>
+          <div style="font-size:0.8rem;">Opened: ${formatMMK(co.tabsOpened)} • Collected: ${formatMMK(co.tabsCollected)} • <strong>Outstanding: ${formatMMK(co.tabsOutstanding)}</strong></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <button class="btn-action-sm" style="padding:12px;" onclick="navigator.clipboard.writeText(window._closeoutText).then(() => showToast('Close-out copied!'))">📋 Copy</button>
+          <button class="btn-submit" style="margin:0; padding:12px;" onclick="showToast('Sharing close-out...')">📲 Share</button>
+        </div>
+      `;
+      openModal(html);
+    }
+
+    // --- Offline backup: download JSON / restore from file ---
+    function exportBackup() {
+      const data = {
+        app: 'blanc-coffee', version: 1, exportedAt: Date.now(),
+        products: STATE.products, orders: STATE.orders, transactions: STATE.transactions,
+        rawMaterials: STATE.rawMaterials, rawMovements: STATE.rawMovements,
+        recipes: STATE.recipes, payments: STATE.payments
+      };
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const a = document.createElement('a');
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      a.href = URL.createObjectURL(blob);
+      a.download = `blanc-coffee-backup-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      showToast('Backup downloaded — keep it safe!');
+    }
+
+    function importBackupFile(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (data.app !== 'blanc-coffee' || data.version !== 1 || !Array.isArray(data.products) || !Array.isArray(data.orders)) {
+            alert('Not a valid BLANC COFFEE backup file.');
+            return;
+          }
+          if (!confirm(`Restore backup from ${new Date(data.exportedAt).toLocaleString()}? Current data will be replaced.`)) return;
+          STATE.products = data.products;
+          STATE.orders = data.orders || [];
+          STATE.transactions = data.transactions || [];
+          STATE.rawMaterials = data.rawMaterials || [];
+          STATE.rawMovements = data.rawMovements || [];
+          STATE.recipes = data.recipes || [];
+          STATE.payments = data.payments || [];
+          showToast('Backup restored!');
+          updateBadges();
+          renderCurrentScreen();
+        } catch (e) {
+          alert('Backup file is corrupt.');
+        }
+        input.value = '';
+      };
+      reader.readAsText(file);
     }
 
     // 2. ORDERS SCREEN
@@ -1540,11 +1813,16 @@
               <!-- Footer with actions -->
               <div class="item-footer">
                 <div>
-                  <span class="total-price">${formatMMK(order.totalAmount)}</span>
+                  ${(order.discount || 0) > 0 ? `<div style="font-size:0.72rem; color:var(--shop-text-secondary);">${formatMMK(order.totalAmount)} − ${formatMMK(order.discount)}</div>` : ''}
+                  <span class="total-price">${formatMMK(orderNet(order))}</span>
                   <span class="item-badge badge-${order.paymentStatus.toLowerCase()}" style="margin-left:6px;">${order.paymentStatus}</span>
+                  ${order.paymentStatus === 'UNPAID' && amountDue(order) > 0 ? `<div style="font-size:0.72rem; color:var(--outcome-red); font-weight:700;">Owes ${formatMMK(amountDue(order))}</div>` : ''}
                 </div>
-                <div style="display:flex; gap:6px;">
+                <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
                   <button class="btn-action-sm" onclick="openOrderReceipt(${order.id})">Slip</button>
+                  ${order.paymentStatus === 'UNPAID' ? `
+                    <button class="btn-primary-sm" onclick="openCollectModal(${order.id})">Collect</button>
+                  ` : ''}
                   ${order.status === 'PENDING' ? `
                     <button class="btn-primary-sm" onclick="advanceOrderStatus(${order.id}, 'PREPARING')">Prepare</button>
                   ` : order.status === 'PREPARING' ? `
@@ -1571,24 +1849,91 @@
       renderCurrentScreen();
     }
 
+    // --- Collect (partial/full) payment on an UNPAID tab order ---
+    function openCollectModal(orderId) {
+      const order = STATE.orders.find(o => o.id === orderId);
+      if (!order) return;
+      const due = amountDue(order);
+      const html = `
+        <div class="modal-header">
+          <h3>Collect: ${order.orderNumber}</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="background:var(--shop-surface-variant); padding:12px; border-radius:12px; font-size:0.82rem;">
+          <div><strong>Customer:</strong> ${order.customerName}</div>
+          <div><strong>Due now:</strong> ${formatMMK(due)}${(order.discount || 0) > 0 ? ` (net of ${formatMMK(order.discount)} discount)` : ''}</div>
+          <div><strong>Already paid:</strong> ${formatMMK(paidForOrder(order.id))}</div>
+        </div>
+        <div class="form-group">
+          <label>Amount received (MMK)</label>
+          <input type="number" class="input-field" id="collectAmount" value="${due}" min="1">
+        </div>
+        <div class="form-group">
+          <label>Method</label>
+          <select class="input-field" id="collectMethod">
+            <option value="CASH">Cash</option>
+            <option value="KBZPAY">KBZPay</option>
+            <option value="CB_PAY">CB Pay</option>
+            <option value="AYA_PAY">AYA Pay</option>
+            <option value="CARD">Card</option>
+          </select>
+        </div>
+        <button class="btn-submit" onclick="submitCollect(${order.id})">Record Payment</button>
+      `;
+      openModal(html);
+    }
+
+    function submitCollect(orderId) {
+      const order = STATE.orders.find(o => o.id === orderId);
+      if (!order) return;
+      const due = amountDue(order);
+      const amount = parseFloat(document.getElementById('collectAmount').value) || 0;
+      const method = document.getElementById('collectMethod').value;
+      if (amount <= 0 || amount > due + 0.009) {
+        alert(`Enter an amount between 1 and ${formatMMK(due)}.`);
+        return;
+      }
+      STATE.payments.unshift({ id: Date.now(), orderId, amount, method, note: '', timestamp: Date.now() });
+      const left = due - amount;
+      if (left <= 0.009) {
+        order.paymentStatus = 'PAID';
+        if (!STATE.transactions.some(t => t.refOrder === order.orderNumber && t.type === 'INCOME' && t.amount > 0)) {
+          STATE.transactions.unshift({
+            id: Date.now() + 1, type: 'INCOME', category: 'ORDER_SALE', amount: orderNet(order),
+            title: `Order #${order.orderNumber} - ${order.customerName}`,
+            note: 'Tab settled in full', timestamp: Date.now(), refOrder: order.orderNumber
+          });
+        }
+        showToast(`Tab ${order.orderNumber} settled in full!`);
+      } else {
+        showToast(`Recorded ${formatMMK(amount)} — ${formatMMK(left)} still owed.`);
+      }
+      closeModal();
+      updateBadges();
+      renderCurrentScreen();
+    }
+
     function advanceOrderStatus(orderId, nextStatus) {
       const order = STATE.orders.find(o => o.id === orderId);
       if (!order) return;
       order.status = nextStatus;
 
-      // Idempotent Income recording when completed if unpaid
+      // Completing an UNPAID order leaves the tab open (collect via Collect button).
+      // Only auto-settle when partial payments already cover the net.
       if (nextStatus === 'COMPLETED' && order.paymentStatus === 'UNPAID') {
-        order.paymentStatus = 'PAID';
-        STATE.transactions.unshift({
-          id: Date.now(),
-          type: 'INCOME',
-          category: 'ORDER_SALE',
-          amount: order.totalAmount,
-          title: `Order #${order.orderNumber} - ${order.customerName}`,
-          note: `Payment collected upon order completion`,
-          timestamp: Date.now(),
-          refOrder: order.orderNumber
-        });
+        if (amountDue(order) <= 0.009 && !STATE.transactions.some(t => t.refOrder === order.orderNumber && t.type === 'INCOME' && t.amount > 0)) {
+          order.paymentStatus = 'PAID';
+          STATE.transactions.unshift({
+            id: Date.now(),
+            type: 'INCOME',
+            category: 'ORDER_SALE',
+            amount: orderNet(order),
+            title: `Order #${order.orderNumber} - ${order.customerName}`,
+            note: `Tab settled in full`,
+            timestamp: Date.now(),
+            refOrder: order.orderNumber
+          });
+        }
       }
 
       showToast(`Order ${order.orderNumber} marked as ${nextStatus}!`);
@@ -1702,6 +2047,7 @@
                     <span class="prod-sku">${p.sku}</span>
                     <h4 style="font-size:0.92rem; margin-top:3px; font-weight:700;">${p.name}</h4>
                     <p style="font-size:0.72rem; color:var(--shop-text-secondary); margin-top:2px;">${p.desc}</p>
+                    ${(() => { const eb = expiryBadge(p.expiryDate); return eb ? `<span class="stock-badge ${eb.cls}" style="margin-top:4px; display:inline-block;">${eb.text}</span>` : ''; })()}
                   </div>
                   <span class="stock-badge ${stockClass}">${stockText}</span>
                 </div>
@@ -1789,6 +2135,7 @@
                     <span class="prod-sku">${m.sku || 'RAW'}</span>
                     <h4 style="font-size:0.92rem; margin-top:3px; font-weight:700;">${m.name}</h4>
                     ${m.note ? `<p style="font-size:0.72rem; color:var(--shop-text-secondary); margin-top:2px;">${m.note}</p>` : ''}
+                    ${(() => { const eb = expiryBadge(m.expiryDate); return eb ? `<span class="stock-badge ${eb.cls}" style="margin-top:4px; display:inline-block;">${eb.text}</span>` : ''; })()}
                   </div>
                   <span class="stock-badge ${stockClass}">${stockText}</span>
                 </div>
@@ -1862,6 +2209,10 @@
           <label>Supplier / note (optional)</label>
           <input type="text" class="input-field" id="newRawNote" placeholder="25kg bags from Shan supplier">
         </div>
+        <div class="form-group">
+          <label>Expiry Date (optional)</label>
+          <input type="date" class="input-field" id="newRawExpiry">
+        </div>
         <button class="btn-submit" onclick="submitNewRaw()">Add Raw Ingredient</button>
       `;
       openModal(html);
@@ -1875,7 +2226,8 @@
       const minStock = parseFloat(document.getElementById('newRawMin').value) || 0;
       const sku = document.getElementById('newRawSku').value.trim() || ('RAW-' + Date.now().toString().slice(-4));
       const note = document.getElementById('newRawNote').value.trim();
-      STATE.rawMaterials.push({ id: Date.now(), name, unit, stock, minStock, costPerUnit: 0, sku, note });
+      const expiryVal = document.getElementById('newRawExpiry').value;
+      STATE.rawMaterials.push({ id: Date.now(), name, unit, stock, minStock, costPerUnit: 0, sku, note, expiryDate: expiryVal ? new Date(expiryVal + 'T00:00:00').getTime() : null });
       closeModal();
       showToast(name + " added to raw stock!");
       updateBadges();
@@ -2167,6 +2519,8 @@
         note: '',
         paymentMethod: 'KBZPAY',
         isPaid: true,
+        discount: 0,
+        discountReason: '',
         selectedProducts: {} // { prodId: quantity }
       };
 
@@ -2227,8 +2581,19 @@
             <label>Payment Status</label>
             <select class="input-field" onchange="window._orderDraft.isPaid = (this.value === 'PAID')">
               <option value="PAID">PAID</option>
-              <option value="UNPAID">UNPAID (Pay on Delivery)</option>
+              <option value="UNPAID">UNPAID (Tab)</option>
             </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group">
+            <label>Discount MMK (optional)</label>
+            <input type="number" class="input-field" id="draftDiscount" value="0" min="0" oninput="window._orderDraft.discount = parseFloat(this.value) || 0; updateDraftTotal();">
+          </div>
+          <div class="form-group">
+            <label>Discount reason</label>
+            <input type="text" class="input-field" placeholder="Regular, promo…" oninput="window._orderDraft.discountReason = this.value">
           </div>
         </div>
 
@@ -2264,13 +2629,19 @@
       const qtyEl = document.getElementById(`draftQty_${prodId}`);
       if (qtyEl) qtyEl.innerText = target;
 
-      // Update total
+      updateDraftTotal();
+    }
+
+    function updateDraftTotal() {
+      // Update total (net of discount)
       let total = 0;
       for (const [id, q] of Object.entries(window._orderDraft.selectedProducts)) {
         const itemP = STATE.products.find(prod => prod.id === parseInt(id));
         if (itemP) total += (itemP.price * q);
       }
-      document.getElementById('draftTotalAmount').innerText = formatMMK(total);
+      const disc = Math.min(Math.max(0, window._orderDraft.discount || 0), total);
+      document.getElementById('draftTotalAmount').innerText =
+        formatMMK(total - disc) + (disc > 0 ? ` (discount ${formatMMK(disc)})` : '');
     }
 
     function submitDraftOrder() {
@@ -2341,21 +2712,24 @@
         paymentMethod: draft.paymentMethod,
         totalAmount,
         totalCost,
+        discount: Math.min(Math.max(0, draft.discount || 0), totalAmount),
+        discountReason: draft.discountReason || "",
         timestamp: Date.now(),
         items
       };
 
       STATE.orders.unshift(newOrder);
 
-      // Record income if paid
+      // Record income if paid (net of discount)
       if (draft.isPaid) {
         STATE.transactions.unshift({
           id: Date.now() + 1,
           type: "INCOME",
           category: "ORDER_SALE",
-          amount: totalAmount,
+          amount: orderNet(newOrder),
           title: `Order #${nextOrdNum} - ${draft.name}`,
-          note: items.map(i => `${i.quantity}x ${i.productName}`).join(', '),
+          note: items.map(i => `${i.quantity}x ${i.productName}`).join(', ') +
+            (newOrder.discount > 0 ? ` | Discount ${formatMMK(newOrder.discount)}` : ''),
           timestamp: Date.now(),
           refOrder: nextOrdNum
         });
@@ -2378,7 +2752,7 @@
         timeStyle: 'short'
       });
 
-      const slipText = `================================\n   BLANC COFFEE — ORDER SLIP\n       Yangon, Myanmar\n================================\nOrder #: ${order.orderNumber}\nDate: ${dateStr}\nCustomer: ${order.customerName}\nPhone: ${order.customerPhone}\n--------------------------------\n${order.items.map(i => `${i.quantity}x ${i.productName.substring(0, 22)}\n   @ ${formatMMK(i.price)} = ${formatMMK(i.price * i.quantity)}`).join('\n')}\n--------------------------------\nTOTAL: ${formatMMK(order.totalAmount)}\nPAYMENT: ${order.paymentStatus} (${order.paymentMethod})\nSTATUS: ${order.status}\n================================\nThank you for choosing BLANC COFFEE!\nကျေးဇူးတင်ပါသည်`;
+      const slipText = `================================\n   BLANC COFFEE — ORDER SLIP\n       Yangon, Myanmar\n================================\nOrder #: ${order.orderNumber}\nDate: ${dateStr}\nCustomer: ${order.customerName}\nPhone: ${order.customerPhone}\n--------------------------------\n${order.items.map(i => `${i.quantity}x ${i.productName.substring(0, 22)}\n   @ ${formatMMK(i.price)} = ${formatMMK(i.price * i.quantity)}`).join('\n')}\n--------------------------------\nSUBTOTAL: ${formatMMK(order.totalAmount)}\n${(order.discount || 0) > 0 ? `DISCOUNT: -${formatMMK(order.discount)}${order.discountReason ? ' (' + order.discountReason + ')' : ''}\n` : ''}TOTAL: ${formatMMK(orderNet(order))}\nPAYMENT: ${order.paymentStatus} (${order.paymentMethod})\nSTATUS: ${order.status}\n================================\nThank you for choosing BLANC COFFEE!\nကျေးဇူးတင်ပါသည်`;
 
       const html = `
         <div class="modal-header">
@@ -2403,9 +2777,18 @@
             </div>
           `).join('')}
           <div class="receipt-divider"></div>
+          <div style="display:flex; justify-content:space-between; font-size:0.78rem;">
+            <span>Subtotal:</span>
+            <span>${formatMMK(order.totalAmount)}</span>
+          </div>
+          ${(order.discount || 0) > 0 ? `
+          <div style="display:flex; justify-content:space-between; font-size:0.78rem;">
+            <span>Discount${order.discountReason ? ' (' + order.discountReason + ')' : ''}:</span>
+            <span>-${formatMMK(order.discount)}</span>
+          </div>` : ''}
           <div style="display:flex; justify-content:space-between; font-size:1rem; font-weight:bold;">
             <span>TOTAL DUE:</span>
-            <span>${formatMMK(order.totalAmount)}</span>
+            <span>${formatMMK(orderNet(order))}</span>
           </div>
           <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-top:4px;">
             <span>Payment: ${order.paymentStatus}</span>
@@ -2649,6 +3032,11 @@
           <input type="text" class="input-field" id="newProdSku" placeholder="e.g. TEA-CAS-100">
         </div>
 
+        <div class="form-group">
+          <label>Expiry Date (optional, for perishables)</label>
+          <input type="date" class="input-field" id="newProdExpiry">
+        </div>
+
         <button class="btn-submit" onclick="submitNewProduct()">Add to Inventory</button>
       `;
 
@@ -2663,6 +3051,8 @@
       const stock = parseInt(document.getElementById('newProdStock').value) || 0;
       const unit = document.getElementById('newProdUnit').value.trim() || 'units';
       const sku = document.getElementById('newProdSku').value.trim() || `PRD-${Date.now().toString().slice(-4)}`;
+      const expiryVal = document.getElementById('newProdExpiry').value;
+      const expiryDate = expiryVal ? new Date(expiryVal + 'T00:00:00').getTime() : null;
 
       if (!name || price <= 0) {
         alert("Please enter product name and selling price.");
@@ -2679,6 +3069,7 @@
         unit,
         minStock: 5,
         sku,
+        expiryDate,
         desc: "Specialty item added to catalog."
       });
 

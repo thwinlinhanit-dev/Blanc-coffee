@@ -67,4 +67,13 @@ interface OrderDao {
 
     @Query("DELETE FROM order_items")
     suspend fun deleteAllOrderItems()
+
+    @Query("SELECT * FROM orders ORDER BY id ASC")
+    suspend fun getAllOrdersOnce(): List<CustomerOrder>
+
+    @Query("SELECT * FROM order_items ORDER BY id ASC")
+    suspend fun getAllOrderItemsOnce(): List<OrderItem>
+
+    @Query("SELECT * FROM order_items WHERE orderId = :orderId ORDER BY id ASC")
+    suspend fun getItemsForOrderOnce(orderId: Long): List<OrderItem>
 }

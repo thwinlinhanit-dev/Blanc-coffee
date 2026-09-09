@@ -1,12 +1,14 @@
 package com.blanccoffee.app.data.repository
 
 import com.blanccoffee.app.data.local.AppDatabase
+import com.blanccoffee.app.data.local.CustomerPaymentDao
 import com.blanccoffee.app.data.local.InventoryDao
 import com.blanccoffee.app.data.local.OrderDao
 import com.blanccoffee.app.data.local.ProductDao
 import com.blanccoffee.app.data.local.RawMaterialDao
 import com.blanccoffee.app.data.local.TransactionDao
 import com.blanccoffee.app.data.model.CustomerOrder
+import com.blanccoffee.app.data.model.CustomerPayment
 import com.blanccoffee.app.data.model.OrderItem
 import com.blanccoffee.app.data.model.OrderStatus
 import com.blanccoffee.app.data.model.OrderWithItems
@@ -39,7 +41,8 @@ class ShopRepository(
     private val inventoryDao: InventoryDao,
     private val orderDao: OrderDao,
     private val transactionDao: TransactionDao,
-    private val rawMaterialDao: RawMaterialDao
+    private val rawMaterialDao: RawMaterialDao,
+    private val customerPaymentDao: CustomerPaymentDao
 ) {
     // Reactive streams from DAOs
     val allProducts: Flow<List<Product>> = productDao.getAllProducts()
@@ -53,6 +56,8 @@ class ShopRepository(
     val lowRawMaterials: Flow<List<RawMaterial>> = rawMaterialDao.getLowRawMaterials()
     val allRawMovements: Flow<List<RawMaterialMovement>> = rawMaterialDao.getAllMovements()
     val allRecipes: Flow<List<ProductRecipe>> = rawMaterialDao.getAllRecipes()
+    // Credit-tab payment stream
+    val allPayments: Flow<List<CustomerPayment>> = customerPaymentDao.getAllPayments()
 
     /** The database handle used to run atomic multi-table transactions. */
 
@@ -126,7 +131,11 @@ class ShopRepository(
      *   throwing [IllegalArgumentException] (the UI also validates before calling this).
      * - Generates collision-free order numbers from MAX(existing "ORD-<n>") instead of row
      *   counts, so numbers stay unique even after orders have been deleted.
+     * - [discountAmount] is clamped to [0, gross]; income is always recorded on the
+     *   net (gross − discount), never the gross.
      * - Records exactly one ORDER_SALE income transaction for paid orders (idempotent guard).
+     * - UNPAID orders stay open as credit tabs (see [recordCustomerPayment]); completing
+     *   them does NOT auto-mark them paid.
      *
      * @return the freshly inserted [CustomerOrder] (with generated id and order number),
      *   ready for receipt / order-slip generation.
@@ -137,7 +146,9 @@ class ShopRepository(
         customerNote: String,
         paymentStatus: PaymentStatus,
         paymentMethod: PaymentMethod,
-        items: List<Pair<Product, Int>>
+        items: List<Pair<Product, Int>>,
+        discountAmount: Double = 0.0,
+        discountReason: String = ""
     ): CustomerOrder = withContext(Dispatchers.IO) {
         // Hard guard: never allow creating an order that exceeds available stock.
         val insufficient = items.filter { (prod, qty) -> qty <= 0 || qty > prod.stockQuantity }
@@ -162,6 +173,8 @@ class ShopRepository(
         }
         val totalAmount = items.sumOf { (prod, qty) -> prod.sellingPrice * qty }
         val totalCost = items.sumOf { (prod, qty) -> prod.costPrice * qty }
+        val discount = discountAmount.coerceIn(0.0, totalAmount)
+        val netAmount = totalAmount - discount
 
         val order = CustomerOrder(
             orderNumber = orderNumber,
@@ -173,6 +186,8 @@ class ShopRepository(
             paymentMethod = paymentMethod.name,
             totalAmount = totalAmount,
             totalCost = totalCost,
+            discountAmount = discount,
+            discountReason = discountReason.trim(),
             createdAt = System.currentTimeMillis()
         )
         val orderId = orderDao.insertOrder(order)
@@ -223,15 +238,19 @@ class ShopRepository(
         }
 
         // If paid, record income transaction - guarded so income is inserted only once.
+        // Income is always the NET (gross - discount).
         if (paymentStatus == PaymentStatus.PAID &&
             transactionDao.countPositiveIncomeForOrder(orderId) == 0
         ) {
             val income = Transaction(
                 type = TransactionType.INCOME.name,
                 category = TransactionCategory.ORDER_SALE.name,
-                amount = totalAmount,
+                amount = netAmount,
                 title = "Order #$orderNumber - ${customerName.trim().ifEmpty { "Walk-in Customer" }}",
-                note = "Items: ${items.joinToString { "${it.first.name} x${it.second}" }}",
+                note = buildString {
+                    append("Items: ${items.joinToString { "${it.first.name} x${it.second}" }}")
+                    if (discount > 0) append(" | Discount ${discount} MMK (${discountReason.trim().ifBlank { "promo" }})")
+                },
                 referenceOrderId = orderId,
                 timestamp = System.currentTimeMillis()
             )
@@ -245,28 +264,31 @@ class ShopRepository(
     /**
      * Moves an order through the PENDING → PREPARING → COMPLETED flow.
      *
-     * When an order transitions to COMPLETED while still unpaid, it is settled automatically:
-     * the payment status becomes PAID and an ORDER_SALE income transaction is inserted -
-     * but only if no positive income transaction already exists for this order, which
-     * makes the operation idempotent and prevents double income recording.
+     * Completing an UNPAID order does NOT mark it paid — it stays open as a
+     * credit tab until [recordCustomerPayment] covers the net total. The only
+     * auto-settle left is when partial payments already cover the net (e.g. a
+     * tab fully paid before pickup): then completion flips it to PAID and
+     * records the single ORDER_SALE income row (idempotent guard).
      */
     suspend fun updateOrderStatus(orderId: Long, newStatus: OrderStatus) = withContext(Dispatchers.IO) {
         val completedAt = if (newStatus == OrderStatus.COMPLETED) System.currentTimeMillis() else null
         orderDao.updateOrderStatus(orderId, newStatus.name, completedAt)
 
-        // If transitioning to completed and payment was not paid, or to ensure income is logged
-        val orderWithItems = orderDao.getOrderWithItemsById(orderId)
-        if (newStatus == OrderStatus.COMPLETED && orderWithItems != null) {
-            if (orderWithItems.order.paymentStatus != PaymentStatus.PAID.name) {
-                orderDao.updatePaymentStatus(orderId, PaymentStatus.PAID.name)
-                // Idempotent income guard: only insert if this order has no positive income yet.
-                if (transactionDao.countPositiveIncomeForOrder(orderId) == 0) {
+        if (newStatus == OrderStatus.COMPLETED) {
+            val orderWithItems = orderDao.getOrderWithItemsById(orderId)
+            if (orderWithItems != null &&
+                orderWithItems.order.paymentStatus != PaymentStatus.PAID.name
+            ) {
+                val net = orderWithItems.order.netAmount
+                val paid = customerPaymentDao.getPaidTotalForOrder(orderId)
+                if (paid >= net && transactionDao.countPositiveIncomeForOrder(orderId) == 0) {
+                    orderDao.updatePaymentStatus(orderId, PaymentStatus.PAID.name)
                     val income = Transaction(
                         type = TransactionType.INCOME.name,
                         category = TransactionCategory.ORDER_SALE.name,
-                        amount = orderWithItems.order.totalAmount,
+                        amount = net,
                         title = "Order #${orderWithItems.order.orderNumber} - ${orderWithItems.order.customerName}",
-                        note = "Completed and settled",
+                        note = "Tab settled in full (${paid} MMK received)",
                         referenceOrderId = orderId,
                         timestamp = System.currentTimeMillis()
                     )
@@ -277,11 +299,87 @@ class ShopRepository(
     }
 
     /**
+     * Records a cash-in against an UNPAID (tab) order — full or partial.
+     *
+     * Throws [IllegalArgumentException] when the amount is invalid (≤ 0 or more
+     * than the remaining due). When payments reach the net total, the order flips
+     * to PAID and exactly one ORDER_SALE income row is written for the net amount.
+     *
+     * @return the remaining due after this payment (0 when the tab is settled).
+     */
+    suspend fun recordCustomerPayment(
+        orderId: Long,
+        amount: Double,
+        method: PaymentMethod,
+        note: String = ""
+    ): Double = withContext(Dispatchers.IO) {
+        if (amount <= 0) throw IllegalArgumentException("Payment must be greater than 0.")
+        val orderWithItems = orderDao.getOrderWithItemsById(orderId)
+            ?: throw IllegalArgumentException("Order not found.")
+        val order = orderWithItems.order
+        if (order.status == OrderStatus.CANCELLED.name) {
+            throw IllegalArgumentException("Cannot collect on a cancelled order.")
+        }
+        if (order.paymentStatus == PaymentStatus.PAID.name) {
+            throw IllegalArgumentException("Order ${order.orderNumber} is already paid.")
+        }
+        val due = (order.netAmount - customerPaymentDao.getPaidTotalForOrder(orderId))
+            .coerceAtLeast(0.0)
+        if (amount > due + 0.009) {
+            throw IllegalArgumentException(
+                "Payment exceeds the due: ${amount} MMK > ${due} MMK still owed."
+            )
+        }
+        database.withTransaction {
+            customerPaymentDao.insertPayment(
+                CustomerPayment(
+                    orderId = orderId,
+                    amount = amount,
+                    method = method.name,
+                    note = note.trim(),
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+            val paidNow = customerPaymentDao.getPaidTotalForOrder(orderId)
+            if (paidNow + 0.009 >= order.netAmount) {
+                orderDao.updatePaymentStatus(orderId, PaymentStatus.PAID.name)
+                if (transactionDao.countPositiveIncomeForOrder(orderId) == 0) {
+                    transactionDao.insertTransaction(
+                        Transaction(
+                            type = TransactionType.INCOME.name,
+                            category = TransactionCategory.ORDER_SALE.name,
+                            amount = order.netAmount,
+                            title = "Order #${order.orderNumber} - ${order.customerName}",
+                            note = "Tab settled in full" +
+                                (if (order.discountAmount > 0) " (discount ${order.discountAmount} MMK)" else ""),
+                            referenceOrderId = orderId,
+                            timestamp = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
+        }
+        ((order.netAmount - customerPaymentDao.getPaidTotalForOrder(orderId)).coerceAtLeast(0.0))
+    }
+
+    /** Total paid so far against an order (0 when nothing recorded). */
+    suspend fun getPaidTotal(orderId: Long): Double =
+        customerPaymentDao.getPaidTotalForOrder(orderId)
+
+    /** Remaining due on an order: net − paid (0 for PAID/cancelled-settled orders). */
+    suspend fun getAmountDue(orderId: Long): Double = withContext(Dispatchers.IO) {
+        val full = orderDao.getOrderWithItemsById(orderId) ?: return@withContext 0.0
+        if (full.order.paymentStatus == PaymentStatus.PAID.name) return@withContext 0.0
+        (full.order.netAmount - customerPaymentDao.getPaidTotalForOrder(orderId)).coerceAtLeast(0.0)
+    }
+
+    /**
      * Updates the payment status of an order.
      *
      * When manually marking an order as PAID, an ORDER_SALE income transaction is recorded
-     * only if none exists yet for that order ([TransactionDao.countPositiveIncomeForOrder]),
-     * preventing double income when the income row was already created at order creation time.
+     * for the NET amount (gross − discount) — only if none exists yet for that order
+     * ([TransactionDao.countPositiveIncomeForOrder]), preventing double income when the
+     * income row was already created at order creation time.
      */
     suspend fun updatePaymentStatus(orderId: Long, newPaymentStatus: PaymentStatus) = withContext(Dispatchers.IO) {
         val existingOrder = orderDao.getOrderWithItemsById(orderId) ?: return@withContext
@@ -292,9 +390,10 @@ class ShopRepository(
             val income = Transaction(
                 type = TransactionType.INCOME.name,
                 category = TransactionCategory.ORDER_SALE.name,
-                amount = existingOrder.order.totalAmount,
+                amount = existingOrder.order.netAmount,
                 title = "Order #${existingOrder.order.orderNumber} Payment - ${existingOrder.order.customerName}",
-                note = "Payment received",
+                note = "Payment received" +
+                    (if (existingOrder.order.discountAmount > 0) " (net of ${existingOrder.order.discountAmount} MMK discount)" else ""),
                 referenceOrderId = orderId,
                 timestamp = System.currentTimeMillis()
             )
@@ -337,7 +436,7 @@ class ShopRepository(
             val refund = Transaction(
                 type = TransactionType.INCOME.name,
                 category = TransactionCategory.ORDER_REFUND.name,
-                amount = -order.totalAmount,
+                amount = -order.netAmount,
                 title = "Refund: Order #${order.orderNumber} - ${order.customerName}",
                 note = "Compensating refund for cancelled order (stock restored)",
                 referenceOrderId = order.id,
@@ -542,6 +641,333 @@ class ShopRepository(
         transactionDao.deleteTransaction(transaction)
     }
 
+    /** Deletes a finance entry from the ledger. */
+    suspend fun deleteTransaction(transaction: Transaction) = withContext(Dispatchers.IO) {
+        transactionDao.deleteTransaction(transaction)
+    }
+
+    // ---------- Backup & restore (offline JSON, no new dependencies) ----------
+
+    companion object {
+        const val BACKUP_APP_TAG = "blanc-coffee"
+        const val BACKUP_VERSION = 1
+    }
+
+    /**
+     * Serializes the whole shop database to a versioned JSON string.
+     * Used by the Dashboard backup card (file export + share). Never throws for
+     * empty tables — they serialize as empty arrays.
+     */
+    suspend fun exportBackup(): String = withContext(Dispatchers.IO) {
+        val root = org.json.JSONObject()
+        root.put("app", BACKUP_APP_TAG)
+        root.put("version", BACKUP_VERSION)
+        root.put("exportedAt", System.currentTimeMillis())
+
+        root.put("products", org.json.JSONArray().apply {
+            productDao.getAllProductsOnce().forEach { p ->
+                put(org.json.JSONObject()
+                    .put("id", p.id)
+                    .put("name", p.name)
+                    .put("category", p.category)
+                    .put("stockQuantity", p.stockQuantity)
+                    .put("unit", p.unit)
+                    .put("costPrice", p.costPrice)
+                    .put("sellingPrice", p.sellingPrice)
+                    .put("minStockThreshold", p.minStockThreshold)
+                    .put("sku", p.sku)
+                    .put("description", p.description)
+                    .put("lastUpdated", p.lastUpdated)
+                    .apply { if (p.expiryDate != null) put("expiryDate", p.expiryDate) })
+            }
+        })
+        root.put("orders", org.json.JSONArray().apply {
+            orderDao.getAllOrdersOnce().forEach { o ->
+                put(org.json.JSONObject()
+                    .put("id", o.id)
+                    .put("orderNumber", o.orderNumber)
+                    .put("customerName", o.customerName)
+                    .put("customerPhone", o.customerPhone)
+                    .put("customerNote", o.customerNote)
+                    .put("status", o.status)
+                    .put("paymentStatus", o.paymentStatus)
+                    .put("paymentMethod", o.paymentMethod)
+                    .put("totalAmount", o.totalAmount)
+                    .put("totalCost", o.totalCost)
+                    .put("discountAmount", o.discountAmount)
+                    .put("discountReason", o.discountReason)
+                    .put("createdAt", o.createdAt)
+                    .apply { if (o.completedAt != null) put("completedAt", o.completedAt) })
+            }
+        })
+        root.put("orderItems", org.json.JSONArray().apply {
+            orderDao.getAllOrderItemsOnce().forEach { i ->
+                put(org.json.JSONObject()
+                    .put("id", i.id)
+                    .put("orderId", i.orderId)
+                    .put("productId", i.productId)
+                    .put("productName", i.productName)
+                    .put("category", i.category)
+                    .put("unitPrice", i.unitPrice)
+                    .put("costPrice", i.costPrice)
+                    .put("quantity", i.quantity)
+                    .put("subtotal", i.subtotal))
+            }
+        })
+        root.put("transactions", org.json.JSONArray().apply {
+            transactionDao.getAllTransactionsOnce().forEach { t ->
+                put(org.json.JSONObject()
+                    .put("id", t.id)
+                    .put("type", t.type)
+                    .put("category", t.category)
+                    .put("amount", t.amount)
+                    .put("title", t.title)
+                    .put("note", t.note)
+                    .put("timestamp", t.timestamp)
+                    .apply { if (t.referenceOrderId != null) put("referenceOrderId", t.referenceOrderId) })
+            }
+        })
+        root.put("rawMaterials", org.json.JSONArray().apply {
+            rawMaterialDao.getAllRawMaterialsOnce().forEach { m ->
+                put(org.json.JSONObject()
+                    .put("id", m.id)
+                    .put("name", m.name)
+                    .put("unit", m.unit)
+                    .put("stockQuantity", m.stockQuantity)
+                    .put("minThreshold", m.minThreshold)
+                    .put("costPerUnit", m.costPerUnit)
+                    .put("sku", m.sku)
+                    .put("note", m.note)
+                    .put("lastUpdated", m.lastUpdated)
+                    .apply { if (m.expiryDate != null) put("expiryDate", m.expiryDate) })
+            }
+        })
+        root.put("rawMovements", org.json.JSONArray().apply {
+            rawMaterialDao.getAllMovementsOnce().forEach { mv ->
+                put(org.json.JSONObject()
+                    .put("id", mv.id)
+                    .put("materialId", mv.materialId)
+                    .put("type", mv.type)
+                    .put("quantity", mv.quantity)
+                    .put("totalCost", mv.totalCost)
+                    .put("note", mv.note)
+                    .put("timestamp", mv.timestamp)
+                    .apply { if (mv.linkedOrderId != null) put("linkedOrderId", mv.linkedOrderId) })
+            }
+        })
+        root.put("recipes", org.json.JSONArray().apply {
+            rawMaterialDao.getAllRecipesOnce().forEach { r ->
+                put(org.json.JSONObject()
+                    .put("productId", r.productId)
+                    .put("materialId", r.materialId)
+                    .put("quantityPerUnit", r.quantityPerUnit))
+            }
+        })
+        root.put("payments", org.json.JSONArray().apply {
+            customerPaymentDao.getAllPaymentsOnce().forEach { p ->
+                put(org.json.JSONObject()
+                    .put("id", p.id)
+                    .put("orderId", p.orderId)
+                    .put("amount", p.amount)
+                    .put("method", p.method)
+                    .put("note", p.note)
+                    .put("timestamp", p.timestamp))
+            }
+        })
+        root.toString()
+    }
+
+    /**
+     * Replaces the whole database with the contents of an [exportBackup] JSON string.
+     * Validates the app tag + version first and throws [IllegalArgumentException]
+     * for anything else (wrong file, newer backup version). Runs atomically: a
+     * corrupt payload never leaves a half-restored database.
+     */
+    suspend fun importBackup(json: String) = withContext(Dispatchers.IO) {
+        val root = try {
+            org.json.JSONObject(json)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Not a valid backup file.")
+        }
+        if (root.optString("app") != BACKUP_APP_TAG) {
+            throw IllegalArgumentException("Not a BLANC COFFEE backup file.")
+        }
+        if (root.optInt("version", -1) != BACKUP_VERSION) {
+            throw IllegalArgumentException("Unsupported backup version.")
+        }
+        fun org.json.JSONObject.optLongOrNull(key: String): Long? =
+            if (has(key) && !isNull(key)) optLong(key) else null
+
+        val products = mutableListOf<Product>()
+        val orders = mutableListOf<CustomerOrder>()
+        val items = mutableListOf<OrderItem>()
+        val transactions = mutableListOf<Transaction>()
+        val raws = mutableListOf<RawMaterial>()
+        val movements = mutableListOf<RawMaterialMovement>()
+        val recipes = mutableListOf<ProductRecipe>()
+        val payments = mutableListOf<CustomerPayment>()
+        try {
+            val arr = root.getJSONArray("products")
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                products.add(
+                    Product(
+                        id = o.getLong("id"),
+                        name = o.getString("name"),
+                        category = o.getString("category"),
+                        stockQuantity = o.getInt("stockQuantity"),
+                        unit = o.optString("unit", "units"),
+                        costPrice = o.getDouble("costPrice"),
+                        sellingPrice = o.getDouble("sellingPrice"),
+                        minStockThreshold = o.optInt("minStockThreshold", 5),
+                        sku = o.optString("sku", ""),
+                        description = o.optString("description", ""),
+                        expiryDate = o.optLongOrNull("expiryDate"),
+                        lastUpdated = o.optLong("lastUpdated", System.currentTimeMillis())
+                    )
+                )
+            }
+            val oarr = root.getJSONArray("orders")
+            for (i in 0 until oarr.length()) {
+                val o = oarr.getJSONObject(i)
+                orders.add(
+                    CustomerOrder(
+                        id = o.getLong("id"),
+                        orderNumber = o.getString("orderNumber"),
+                        customerName = o.getString("customerName"),
+                        customerPhone = o.optString("customerPhone", ""),
+                        customerNote = o.optString("customerNote", ""),
+                        status = o.optString("status", OrderStatus.PENDING.name),
+                        paymentStatus = o.optString("paymentStatus", PaymentStatus.PAID.name),
+                        paymentMethod = o.optString("paymentMethod", PaymentMethod.CASH.name),
+                        totalAmount = o.getDouble("totalAmount"),
+                        totalCost = o.optDouble("totalCost", 0.0),
+                        discountAmount = o.optDouble("discountAmount", 0.0),
+                        discountReason = o.optString("discountReason", ""),
+                        createdAt = o.optLong("createdAt", System.currentTimeMillis()),
+                        completedAt = o.optLongOrNull("completedAt")
+                    )
+                )
+            }
+            val iarr = root.getJSONArray("orderItems")
+            for (i in 0 until iarr.length()) {
+                val o = iarr.getJSONObject(i)
+                items.add(
+                    OrderItem(
+                        id = o.getLong("id"),
+                        orderId = o.getLong("orderId"),
+                        productId = o.getLong("productId"),
+                        productName = o.getString("productName"),
+                        category = o.optString("category", ""),
+                        unitPrice = o.getDouble("unitPrice"),
+                        costPrice = o.optDouble("costPrice", 0.0),
+                        quantity = o.getInt("quantity"),
+                        subtotal = o.getDouble("subtotal")
+                    )
+                )
+            }
+            val tarr = root.getJSONArray("transactions")
+            for (i in 0 until tarr.length()) {
+                val o = tarr.getJSONObject(i)
+                transactions.add(
+                    Transaction(
+                        id = o.getLong("id"),
+                        type = o.getString("type"),
+                        category = o.getString("category"),
+                        amount = o.getDouble("amount"),
+                        title = o.getString("title"),
+                        note = o.optString("note", ""),
+                        referenceOrderId = o.optLongOrNull("referenceOrderId"),
+                        timestamp = o.optLong("timestamp", System.currentTimeMillis())
+                    )
+                )
+            }
+            val rarr = root.getJSONArray("rawMaterials")
+            for (i in 0 until rarr.length()) {
+                val o = rarr.getJSONObject(i)
+                raws.add(
+                    RawMaterial(
+                        id = o.getLong("id"),
+                        name = o.getString("name"),
+                        unit = o.optString("unit", "units"),
+                        stockQuantity = o.getDouble("stockQuantity"),
+                        minThreshold = o.optDouble("minThreshold", 5.0),
+                        costPerUnit = o.optDouble("costPerUnit", 0.0),
+                        sku = o.optString("sku", ""),
+                        note = o.optString("note", ""),
+                        expiryDate = o.optLongOrNull("expiryDate"),
+                        lastUpdated = o.optLong("lastUpdated", System.currentTimeMillis())
+                    )
+                )
+            }
+            val marr = root.getJSONArray("rawMovements")
+            for (i in 0 until marr.length()) {
+                val o = marr.getJSONObject(i)
+                movements.add(
+                    RawMaterialMovement(
+                        id = o.getLong("id"),
+                        materialId = o.getLong("materialId"),
+                        type = o.getString("type"),
+                        quantity = o.getDouble("quantity"),
+                        totalCost = o.optDouble("totalCost", 0.0),
+                        note = o.optString("note", ""),
+                        linkedOrderId = o.optLongOrNull("linkedOrderId"),
+                        timestamp = o.optLong("timestamp", System.currentTimeMillis())
+                    )
+                )
+            }
+            val rcarr = root.getJSONArray("recipes")
+            for (i in 0 until rcarr.length()) {
+                val o = rcarr.getJSONObject(i)
+                recipes.add(
+                    ProductRecipe(
+                        productId = o.getLong("productId"),
+                        materialId = o.getLong("materialId"),
+                        quantityPerUnit = o.getDouble("quantityPerUnit")
+                    )
+                )
+            }
+            val parr = root.getJSONArray("payments")
+            for (i in 0 until parr.length()) {
+                val o = parr.getJSONObject(i)
+                payments.add(
+                    CustomerPayment(
+                        id = o.getLong("id"),
+                        orderId = o.getLong("orderId"),
+                        amount = o.getDouble("amount"),
+                        method = o.optString("method", PaymentMethod.CASH.name),
+                        note = o.optString("note", ""),
+                        timestamp = o.optLong("timestamp", System.currentTimeMillis())
+                    )
+                )
+            }
+        } catch (e: IllegalArgumentException) {
+            throw e
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Backup file is corrupt (missing data).")
+        }
+
+        database.withTransaction {
+            customerPaymentDao.deleteAllPayments()
+            orderDao.deleteAllOrderItems()
+            orderDao.deleteAllOrders()
+            transactionDao.deleteAllTransactions()
+            rawMaterialDao.deleteAllMovements()
+            rawMaterialDao.deleteAllRecipes()
+            rawMaterialDao.deleteAllRawMaterials()
+            productDao.deleteAllProducts()
+
+            if (products.isNotEmpty()) productDao.insertProducts(products)
+            if (raws.isNotEmpty()) rawMaterialDao.insertRawMaterials(raws)
+            if (movements.isNotEmpty()) rawMaterialDao.insertMovements(movements)
+            recipes.forEach { rawMaterialDao.upsertRecipe(it) }
+            orders.forEach { orderDao.insertOrder(it) }
+            if (items.isNotEmpty()) orderDao.insertOrderItems(items)
+            if (transactions.isNotEmpty()) transactionDao.insertTransactions(transactions)
+            if (payments.isNotEmpty()) customerPaymentDao.insertPayments(payments)
+        }
+    }
+
     /**
      * Seeds sample MMK data (products, finance history and orders with Myanmar customer
      * names) ONLY when the database is completely empty. Existing real data is never wiped.
@@ -594,7 +1020,8 @@ class ShopRepository(
                 sellingPrice = 6500.0,
                 minStockThreshold = 10,
                 sku = "COF-NCB-330",
-                description = "Smooth, micro-infused cold brew draft in 330ml recyclable sleek cans."
+                description = "Smooth, micro-infused cold brew draft in 330ml recyclable sleek cans.",
+                expiryDate = now + 20 * day // perishable demo: expires in 20 days
             ),
             Product(
                 name = "Artisan Drip Coffee Pouches (10pk)",
@@ -924,7 +1351,8 @@ class ShopRepository(
                 minThreshold = 3.0,
                 costPerUnit = 18000.0,
                 sku = "RAW-HNY-1L",
-                note = "Low-stock demo — reorder soon"
+                note = "Low-stock demo — reorder soon",
+                expiryDate = now + 60 * day
             ),
             RawMaterial(
                 name = "Kraft Pouches + Labels",

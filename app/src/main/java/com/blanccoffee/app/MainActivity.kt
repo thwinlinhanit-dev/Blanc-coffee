@@ -1,9 +1,13 @@
 package com.blanccoffee.app
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,6 +55,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.blanccoffee.app.data.model.OrderStatus
 import com.blanccoffee.app.ui.ShopViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.blanccoffee.app.ui.screens.DashboardScreen
 import com.blanccoffee.app.ui.screens.FinanceScreen
 import com.blanccoffee.app.ui.screens.InventoryScreen
@@ -91,19 +101,77 @@ enum class ShopDestination(
 }
 
 class MainActivity : ComponentActivity() {
+    private val shopViewModel: ShopViewModel by viewModels()
+
+    /** SAF file pickers for offline backup export / restore (no storage permission needed). */
+    private val exportBackupDoc =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            if (uri == null) return@registerForActivityResult
+            lifecycleScope.launch {
+                try {
+                    val json = withContext(Dispatchers.IO) { shopViewModel.exportBackupNow() }
+                    withContext(Dispatchers.IO) {
+                        contentResolver.openOutputStream(uri)?.use { out ->
+                            out.write(json.toByteArray(Charsets.UTF_8))
+                        } ?: throw IllegalStateException("Cannot open file")
+                    }
+                    Toast.makeText(this@MainActivity, "Backup saved", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Backup failed: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
+    private val importBackupDoc =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri == null) return@registerForActivityResult
+            lifecycleScope.launch {
+                val json = try {
+                    withContext(Dispatchers.IO) {
+                        contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+                if (json.isNullOrBlank()) {
+                    Toast.makeText(this@MainActivity, "Cannot read file", Toast.LENGTH_LONG).show()
+                } else {
+                    shopViewModel.importBackup(json) {
+                        Toast.makeText(this@MainActivity, "Backup restored", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                ShopApp()
+                ShopApp(
+                    viewModel = shopViewModel,
+                    onExportBackup = {
+                        val name = "blanc-coffee-backup-" +
+                            SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date()) + ".json"
+                        exportBackupDoc.launch(name)
+                    },
+                    onPickBackupFile = { importBackupDoc.launch("application/json") }
+                )
             }
         }
     }
 }
 
 @Composable
-fun ShopApp(viewModel: ShopViewModel = viewModel()) {
+fun ShopApp(
+    viewModel: ShopViewModel = viewModel(),
+    onExportBackup: () -> Unit = {},
+    onPickBackupFile: () -> Unit = {},
+) {
     var currentDestination by remember { mutableStateOf(ShopDestination.DASHBOARD) }
     var openNewOrderOnOrdersScreen by remember { mutableStateOf(false) }
     var openExpenseOnFinanceScreen by remember { mutableStateOf(false) }
@@ -225,7 +293,9 @@ fun ShopApp(viewModel: ShopViewModel = viewModel()) {
                         onNavigateToFinance = { openExpenseDialog ->
                             openExpenseOnFinanceScreen = openExpenseDialog
                             currentDestination = ShopDestination.FINANCE
-                        }
+                        },
+                        onExportBackup = onExportBackup,
+                        onPickBackupFile = onPickBackupFile
                     )
                     ShopDestination.ORDERS -> OrdersScreen(
                         viewModel = viewModel,

@@ -50,6 +50,24 @@ interface RawMaterialDao {
     @Query("SELECT COUNT(*) FROM raw_materials")
     suspend fun getRawMaterialCount(): Int
 
+    @Query("SELECT * FROM raw_materials ORDER BY id ASC")
+    suspend fun getAllRawMaterialsOnce(): List<RawMaterial>
+
+    @Query("SELECT * FROM raw_movements ORDER BY id ASC")
+    suspend fun getAllMovementsOnce(): List<RawMaterialMovement>
+
+    @Query("SELECT * FROM product_recipes ORDER BY productId ASC, materialId ASC")
+    suspend fun getAllRecipesOnce(): List<ProductRecipe>
+
+    @Query("DELETE FROM raw_materials")
+    suspend fun deleteAllRawMaterials()
+
+    @Query("DELETE FROM raw_movements")
+    suspend fun deleteAllMovements()
+
+    @Query("DELETE FROM product_recipes")
+    suspend fun deleteAllRecipes()
+
     // --- Movements ledger ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMovement(movement: RawMaterialMovement): Long
