@@ -215,6 +215,8 @@ fun EntryDialog(
             } ?: ""
         )
     }
+    // Made-to-order: produced fresh per order, skips finished-stock tracking.
+    var madeToOrder by remember { mutableStateOf(existingProduct?.madeToOrder ?: false) }
 
     /** Parses an optional YYYY-MM-DD date; null when blank. */
     fun parseExpiryOrNull(text: String): Long? {
@@ -865,6 +867,32 @@ fun EntryDialog(
                                         .testTag("entry_expiry_input")
                                 )
                             }
+
+                            // Made-to-order toggle (fresh production, no stock tracking)
+                            item {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    FilterChip(
+                                        selected = madeToOrder,
+                                        onClick = { madeToOrder = !madeToOrder },
+                                        label = { Text("🔥 Made to order") },
+                                        modifier = Modifier.testTag("entry_madetoorder_chip")
+                                    )
+                                    Text(
+                                        text = if (madeToOrder) {
+                                            "Produced fresh per order — stock never blocks sales"
+                                        } else {
+                                            "Stocked — sales deduct finished stock"
+                                        },
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -944,7 +972,8 @@ fun EntryDialog(
                                                     minStockThreshold = minThreshold,
                                                     sku = generatedSku,
                                                     description = productDescription.trim(),
-                                                    expiryDate = parseExpiryOrNull(expiryText)
+                                                    expiryDate = parseExpiryOrNull(expiryText),
+                                                    madeToOrder = madeToOrder
                                                 )
                                             )
                                         )

@@ -80,6 +80,7 @@ fun DashboardScreen(
     onNavigateToInventory: () -> Unit,
     onNavigateToFinance: (openExpenseDialog: Boolean) -> Unit,
     onExportBackup: () -> Unit = {},
+    onExportSheets: () -> Unit = {},
     onPickBackupFile: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -328,7 +329,8 @@ fun DashboardScreen(
         // Offline backup / restore
         item {
             BackupCard(
-                onExport = onExportBackup,
+                onExportJson = onExportBackup,
+                onExportSheets = onExportSheets,
                 onImport = onPickBackupFile
             )
         }

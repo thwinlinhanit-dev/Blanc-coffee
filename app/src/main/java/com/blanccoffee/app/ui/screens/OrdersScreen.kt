@@ -1005,11 +1005,20 @@ private fun CreateOrderDialog(
                                             fontSize = 12.sp
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Stock: ${prod.stockQuantity} ${prod.unit}",
-                                            fontSize = 11.sp,
-                                            color = if (prod.stockQuantity <= 0) OutcomeRed else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        if (prod.madeToOrder) {
+                                            Text(
+                                                text = "🔥 Made to order",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = CoffeePrimary
+                                            )
+                                        } else {
+                                            Text(
+                                                text = "Stock: ${prod.stockQuantity} ${prod.unit}",
+                                                fontSize = 11.sp,
+                                                color = if (prod.stockQuantity <= 0) OutcomeRed else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
 
@@ -1034,9 +1043,11 @@ private fun CreateOrderDialog(
 
                                     IconButton(
                                         onClick = {
-                                            if (qty < prod.stockQuantity) itemQuantities[prod.id] = qty + 1
+                                            if (prod.madeToOrder || qty < prod.stockQuantity) {
+                                                itemQuantities[prod.id] = qty + 1
+                                            }
                                         },
-                                        enabled = qty < prod.stockQuantity,
+                                        enabled = prod.madeToOrder || qty < prod.stockQuantity,
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))

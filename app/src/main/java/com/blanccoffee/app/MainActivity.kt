@@ -147,6 +147,29 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    /** Second picker: multi-format spreadsheet bundle (.zip with CSVs + backup + close-out). */
+    private val exportSheetsDoc =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+            if (uri == null) return@registerForActivityResult
+            lifecycleScope.launch {
+                try {
+                    val bytes = withContext(Dispatchers.IO) { shopViewModel.exportSheetsNow() }
+                    withContext(Dispatchers.IO) {
+                        contentResolver.openOutputStream(uri)?.use { out ->
+                            out.write(bytes)
+                        } ?: throw IllegalStateException("Cannot open file")
+                    }
+                    Toast.makeText(this@MainActivity, "Spreadsheets saved", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Export failed: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -159,6 +182,11 @@ class MainActivity : ComponentActivity() {
                             SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date()) + ".json"
                         exportBackupDoc.launch(name)
                     },
+                    onExportSheets = {
+                        val name = "blanc-coffee-sheets-" +
+                            SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date()) + ".zip"
+                        exportSheetsDoc.launch(name)
+                    },
                     onPickBackupFile = { importBackupDoc.launch("application/json") }
                 )
             }
@@ -170,6 +198,7 @@ class MainActivity : ComponentActivity() {
 fun ShopApp(
     viewModel: ShopViewModel = viewModel(),
     onExportBackup: () -> Unit = {},
+    onExportSheets: () -> Unit = {},
     onPickBackupFile: () -> Unit = {},
 ) {
     var currentDestination by remember { mutableStateOf(ShopDestination.DASHBOARD) }
@@ -295,6 +324,7 @@ fun ShopApp(
                             currentDestination = ShopDestination.FINANCE
                         },
                         onExportBackup = onExportBackup,
+                        onExportSheets = onExportSheets,
                         onPickBackupFile = onPickBackupFile
                     )
                     ShopDestination.ORDERS -> OrdersScreen(

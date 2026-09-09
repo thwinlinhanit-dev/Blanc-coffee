@@ -284,7 +284,10 @@ fun InventoryScreen(
                             onStockAdjust = { newStock -> viewModel.updateStock(product.id, newStock) },
                             onRestock = { productToRestock = product },
                             onEdit = { productToEdit = product },
-                            onDelete = { productToDelete = product }
+                            onDelete = { productToDelete = product },
+                            onToggleMadeToOrder = {
+                                viewModel.saveProduct(product.copy(madeToOrder = !product.madeToOrder))
+                            }
                         )
                     }
                 }
@@ -354,6 +357,7 @@ private fun ProductInventoryCard(
     onRestock: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onToggleMadeToOrder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -384,11 +388,26 @@ private fun ProductInventoryCard(
                     }
                 }
 
-                StockBadge(
-                    quantity = product.stockQuantity,
-                    minThreshold = product.minStockThreshold,
-                    unit = product.unit
-                )
+                if (product.madeToOrder) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = CoffeePrimary.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "🔥 Made to order",
+                            color = CoffeePrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                } else {
+                    StockBadge(
+                        quantity = product.stockQuantity,
+                        minThreshold = product.minStockThreshold,
+                        unit = product.unit
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -483,27 +502,52 @@ private fun ProductInventoryCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Controls Row: Quick Stock Adjuster + Restock + Edit/Delete
+            // Controls Row: Quick Stock Adjuster + Restock + Edit/Delete.
+            // Made-to-order products hide stock controls (nothing to adjust).
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                StockQuickAdjuster(
-                    currentStock = product.stockQuantity,
-                    onAdjust = onStockAdjust
-                )
+                if (product.madeToOrder) {
+                    TextButton(
+                        onClick = { onToggleMadeToOrder() },
+                        modifier = Modifier.testTag("btn_mto_off_${product.id}")
+                    ) {
+                        Text("Track stock instead", fontSize = 12.sp)
+                    }
+                } else {
+                    StockQuickAdjuster(
+                        currentStock = product.stockQuantity,
+                        onAdjust = onStockAdjust
+                    )
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button(
-                        onClick = onRestock,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CoffeePrimary),
-                        modifier = Modifier.testTag("btn_restock_${product.id}")
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Restock", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    if (product.madeToOrder) {
+                        TextButton(
+                            onClick = { onToggleMadeToOrder() },
+                            modifier = Modifier.testTag("btn_mto_off_${product.id}")
+                        ) {
+                            Text("Track stock instead", fontSize = 12.sp)
+                        }
+                    } else {
+                        Button(
+                            onClick = onRestock,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CoffeePrimary),
+                            modifier = Modifier.testTag("btn_restock_${product.id}")
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Restock", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(
+                            onClick = { onToggleMadeToOrder() },
+                            modifier = Modifier.testTag("btn_mto_on_${product.id}")
+                        ) {
+                            Text("Fresh?", fontSize = 12.sp)
+                        }
                     }
 
                     IconButton(onClick = onEdit) {

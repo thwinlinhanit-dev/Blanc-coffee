@@ -91,6 +91,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
       margin-bottom: 14px;
       padding: 0 4px;
     }
@@ -135,6 +137,8 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: all 0.2s;
     }
 
@@ -232,6 +236,8 @@
       display: flex;
       align-items: center;
       gap: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .badge-offline::before {
@@ -246,11 +252,19 @@
     .screen-content {
       flex: 1;
       overflow-y: auto;
-      padding: 4px 16px 85px;
+      padding: 10px 16px 85px;
       display: flex;
       flex-direction: column;
       gap: 16px;
       scroll-behavior: smooth;
+    }
+
+    /* Items in a scrolling column must never be flex-shrunk: the scroll
+       container absorbs overflow via scrolling, not by crushing cards.
+       (crushed the NET PROFIT hero, whose overflow:hidden zeroes its
+       automatic minimum size) */
+    .screen-content > * {
+      flex-shrink: 0;
     }
 
     .screen-content::-webkit-scrollbar {
@@ -301,25 +315,42 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: nowrap;
+      gap: 8px;
       margin-bottom: 8px;
     }
 
+    .hero-header > * {
+      min-width: 0;
+    }
+
+    .hero-header .hero-label {
+      flex: 1 1 auto;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hero-header .hero-period-pill {
+      flex-shrink: 0;
+    }
+
     .hero-label {
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      color: rgba(255,255,255,0.75);
-      font-weight: 600;
+      color: rgba(255,255,255,0.92);
+      font-weight: 700;
     }
 
     .hero-period-pill {
-      background: rgba(255,255,255,0.15);
-      backdrop-filter: blur(8px);
+      background: rgba(255,255,255,0.22);
       padding: 4px 10px;
       border-radius: 12px;
-      font-size: 0.72rem;
-      font-weight: 600;
+      font-size: 0.74rem;
+      font-weight: 700;
       color: #FFFFFF;
+      white-space: nowrap;
     }
 
     .hero-amount {
@@ -363,16 +394,12 @@
     .metric-val.red { color: #E57373; }
     .metric-val.gold { color: #FFD54F; }
 
-    /* Period Filter Chips */
+    /* Period Filter Chips — wrap so every chip stays fully visible (no cut-off) */
     .chips-row {
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
-      overflow-x: auto;
       padding-bottom: 2px;
-    }
-
-    .chips-row::-webkit-scrollbar {
-      display: none;
     }
 
     .chip {
@@ -385,6 +412,7 @@
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
+      flex-shrink: 0;
       transition: all 0.2s;
     }
 
@@ -923,6 +951,8 @@
       font-weight: 700;
       padding: 2px 8px;
       border-radius: 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .stock-healthy { background: var(--income-bg); color: var(--income-green); }
@@ -1093,18 +1123,18 @@
       financeSearchQuery: '',
       
       products: [
-        { id: 1, name: "Single-Origin Ethiopian Yirgacheffe", category: "COFFEE", stock: 28, unit: "bags", cost: 11000, price: 20000, minStock: 8, sku: "COF-ETH-250", desc: "Light roast with floral notes of jasmine, bergamot, and sweet citrus finish. 250g whole bean." },
-        { id: 2, name: "Dark Espresso Roast Beans", category: "COFFEE", stock: 15, unit: "bags", cost: 9500, price: 18000, minStock: 6, sku: "COF-ESP-500", desc: "Bold, velvety blend of Colombia & Sumatra with notes of dark chocolate and toasted almond. 500g." },
-        { id: 3, name: "Nitro Cold Brew Ready-to-Drink", category: "COFFEE", stock: 4, unit: "cans", cost: 3200, price: 6500, minStock: 10, sku: "COF-NCB-330", desc: "Smooth, micro-infused cold brew draft in 330ml recyclable sleek cans.", expiryDate: Date.now() + 20 * 86400000 },
-        { id: 4, name: "Artisan Drip Coffee Pouches (10pk)", category: "COFFEE", stock: 22, unit: "boxes", cost: 7000, price: 14000, minStock: 5, sku: "COF-DRP-10", desc: "Single-serve pour-over filter bags filled with fresh medium roast specialty grind." },
+        { id: 1, madeToOrder: true, name: "Single-Origin Ethiopian Yirgacheffe", category: "COFFEE", stock: 28, unit: "bags", cost: 11000, price: 20000, minStock: 8, sku: "COF-ETH-250", desc: "Light roast with floral notes of jasmine, bergamot, and sweet citrus finish. 250g whole bean." },
+        { id: 2, madeToOrder: true, name: "Dark Espresso Roast Beans", category: "COFFEE", stock: 15, unit: "bags", cost: 9500, price: 18000, minStock: 6, sku: "COF-ESP-500", desc: "Bold, velvety blend of Colombia & Sumatra with notes of dark chocolate and toasted almond. 500g." },
+        { id: 3, madeToOrder: true, name: "Nitro Cold Brew Ready-to-Drink", category: "COFFEE", stock: 4, unit: "cans", cost: 3200, price: 6500, minStock: 10, sku: "COF-NCB-330", desc: "Smooth, micro-infused cold brew draft in 330ml recyclable sleek cans.", expiryDate: Date.now() + 20 * 86400000 },
+        { id: 4, madeToOrder: true, name: "Artisan Drip Coffee Pouches (10pk)", category: "COFFEE", stock: 22, unit: "boxes", cost: 7000, price: 14000, minStock: 5, sku: "COF-DRP-10", desc: "Single-serve pour-over filter bags filled with fresh medium roast specialty grind." },
         { id: 5, name: "Uji Ceremonial Grade Matcha", category: "GREEN_TEA", stock: 12, unit: "tins", cost: 22000, price: 42000, minStock: 5, sku: "TEA-MTC-050", desc: "First harvest stone-ground green tea from Kyoto, Japan. Vibrant jade color, rich umami." },
         { id: 6, name: "Organic Shizuoka Sencha", category: "GREEN_TEA", stock: 18, unit: "packs", cost: 8500, price: 17000, minStock: 6, sku: "TEA-SNC-100", desc: "Steamed high-grown loose green tea leaves with refreshing grassy sweetness and golden liquor. 100g." },
         { id: 7, name: "Genmaicha Roasted Brown Rice Tea", category: "GREEN_TEA", stock: 2, unit: "packs", cost: 7500, price: 15000, minStock: 5, sku: "TEA-GMC-150", desc: "Traditional green tea blended with nutty toasted brown rice and popped kernels. 150g." },
-        { id: 8, name: "Matcha Latte Concentrate Bottle", category: "GREEN_TEA", stock: 14, unit: "bottles", cost: 6000, price: 13500, minStock: 5, sku: "TEA-MLC-500", desc: "Pure ceremonial matcha syrup blend for quick hot or iced matcha lattes at home. 500ml." },
-        { id: 9, name: "Roasted Himalayan Salt Macadamias", category: "MACADAMIA_NUT", stock: 25, unit: "pouches", cost: 11000, price: 22000, minStock: 8, sku: "NUT-SLT-200", desc: "Dry roasted premium grade whole macadamias lightly seasoned with pure pink Himalayan salt. 200g." },
+        { id: 8, madeToOrder: true, name: "Matcha Latte Concentrate Bottle", category: "GREEN_TEA", stock: 14, unit: "bottles", cost: 6000, price: 13500, minStock: 5, sku: "TEA-MLC-500", desc: "Pure ceremonial matcha syrup blend for quick hot or iced matcha lattes at home. 500ml." },
+        { id: 9, madeToOrder: true, name: "Roasted Himalayan Salt Macadamias", category: "MACADAMIA_NUT", stock: 25, unit: "pouches", cost: 11000, price: 22000, minStock: 8, sku: "NUT-SLT-200", desc: "Dry roasted premium grade whole macadamias lightly seasoned with pure pink Himalayan salt. 200g." },
         { id: 10, name: "Raw Organic Macadamia Kernels", category: "MACADAMIA_NUT", stock: 20, unit: "packs", cost: 14000, price: 28000, minStock: 5, sku: "NUT-RAW-400", desc: "Unsalted, unroasted buttery fresh macadamia nuts. Perfect for baking or wholesome snacking. 400g." },
-        { id: 11, name: "Wildflower Honey Glazed Macadamias", category: "MACADAMIA_NUT", stock: 3, unit: "pouches", cost: 12000, price: 24000, minStock: 6, sku: "NUT-HNY-200", desc: "Crunchy golden roasted nuts tossed in organic wildflower honey and a touch of sea salt. 200g." },
-        { id: 12, name: "Matcha White Chocolate Macadamias", category: "MACADAMIA_NUT", stock: 16, unit: "boxes", cost: 13000, price: 26000, minStock: 5, sku: "NUT-MTC-180", desc: "Roasted macadamia core enrobed in smooth Belgian white chocolate infused with Uji matcha. 180g." }
+        { id: 11, madeToOrder: true, name: "Wildflower Honey Glazed Macadamias", category: "MACADAMIA_NUT", stock: 3, unit: "pouches", cost: 12000, price: 24000, minStock: 6, sku: "NUT-HNY-200", desc: "Crunchy golden roasted nuts tossed in organic wildflower honey and a touch of sea salt. 200g." },
+        { id: 12, madeToOrder: true, name: "Matcha White Chocolate Macadamias", category: "MACADAMIA_NUT", stock: 16, unit: "boxes", cost: 13000, price: 26000, minStock: 5, sku: "NUT-MTC-180", desc: "Roasted macadamia core enrobed in smooth Belgian white chocolate infused with Uji matcha. 180g." }
       ],
 
       orders: [
@@ -1381,7 +1411,7 @@
         orderBadge.style.display = pendingOrders > 0 ? 'flex' : 'none';
       }
 
-      const lowStockCount = STATE.products.filter(p => p.stock <= p.minStock).length +
+      const lowStockCount = STATE.products.filter(p => !p.madeToOrder && p.stock <= p.minStock).length +
         STATE.rawMaterials.filter(m => m.stock <= m.minStock).length;
       const invBadge = document.getElementById('lowStockBadge');
       if (invBadge) {
@@ -1402,6 +1432,9 @@
       } else if (STATE.currentTab === 'finance') {
         renderFinance(container);
       }
+      // The scrollable viewport keeps its position across re-renders, which left
+      // the top card scrolled out of sight after switching tabs — always start at top.
+      container.scrollTop = 0;
     }
 
     // 1. DASHBOARD SCREEN
@@ -1419,7 +1452,7 @@
       const netProfit = income - outcome;
       const margin = income > 0 ? ((netProfit / income) * 100).toFixed(1) : 0;
 
-      const lowStockItems = STATE.products.filter(p => p.stock <= p.minStock);
+      const lowStockItems = STATE.products.filter(p => !p.madeToOrder && p.stock <= p.minStock);
 
       // Category breakdown
       const coffeeRevenue = STATE.orders
@@ -1484,7 +1517,7 @@
         <div class="hero-card">
           <div class="hero-header">
             <span class="hero-label">Net Profit (${STATE.dashboardPeriod.toUpperCase()})</span>
-            <span class="hero-period-pill">${margin}% Margin</span>
+            <span class="hero-period-pill" title="${margin}% Margin">${margin}%</span>
           </div>
           <div class="hero-amount">${formatMMK(netProfit)}</div>
           <div class="hero-metrics-grid">
@@ -1613,9 +1646,21 @@
           <div class="section-head">
             <h3>💾 Shop Data Backup</h3>
           </div>
-          <p style="font-size:0.74rem; color:var(--shop-text-secondary);">All data lives on this device. Export a backup file regularly.</p>
+          <p style="font-size:0.74rem; color:var(--shop-text-secondary);">All data lives on this device. Export regularly in any format.</p>
+          <div class="form-group" style="margin-top:8px;">
+            <label>Export format</label>
+            <select class="input-field" id="exportFormat">
+              <option value="json">Full backup (.json) — restore on any device</option>
+              <option value="finance">Finance ledger (.csv) — Excel/Sheets</option>
+              <option value="orders">Orders + items (.csv) — Excel/Sheets</option>
+              <option value="inventory">Products (.csv) — Excel/Sheets</option>
+              <option value="raw">Raw materials (.csv) — Excel/Sheets</option>
+              <option value="payments">Tab payments (.csv) — Excel/Sheets</option>
+              <option value="closeout">Today's close-out (.txt)</option>
+            </select>
+          </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
-            <button class="btn-primary-sm" style="padding:10px;" onclick="exportBackup()">Export Backup</button>
+            <button class="btn-primary-sm" style="padding:10px;" onclick="exportData()">Export File</button>
             <button class="btn-action-sm" style="padding:10px;" onclick="document.getElementById('importBackupFile').click()">Restore Backup</button>
             <input type="file" id="importBackupFile" accept=".json,application/json" style="display:none;" onchange="importBackupFile(this)">
           </div>
@@ -1701,6 +1746,129 @@
     }
 
     // --- Offline backup: download JSON / restore from file ---
+    function csvStamp(ts) {
+      const d = new Date(ts || Date.now());
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function csvCell(v) {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    function csvMmk(n) {
+      return String(Math.round(Number(n) || 0));
+    }
+
+    function downloadFile(name, content, mime) {
+      const blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    }
+
+    function stampName(prefix, ext) {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return `${prefix}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.${ext}`;
+    }
+
+    function transactionsCsv() {
+      const rows = ['id,date,type,category,amount_mmk,title,note,order_ref'];
+      STATE.transactions.forEach(t => {
+        rows.push([t.id, csvStamp(t.timestamp), t.type, t.category, csvMmk(t.amount),
+          csvCell(t.title), csvCell(t.note), csvCell(t.refOrder || '')].join(','));
+      });
+      return rows.join('\n');
+    }
+
+    function ordersCsv() {
+      const rows = ['order_number,date,customer,phone,status,payment_status,payment_method,item_name,qty,unit_price_mmk,subtotal_mmk,order_gross_mmk,discount_mmk,discount_reason,order_net_mmk'];
+      STATE.orders.forEach(o => {
+        const base = [o.orderNumber, csvStamp(o.timestamp), csvCell(o.customerName), csvCell(o.customerPhone || ''),
+          o.status, o.paymentStatus, o.paymentMethod];
+        const tail = [csvMmk(o.totalAmount), csvMmk(o.discount || 0), csvCell(o.discountReason || ''), csvMmk(orderNet(o))];
+        if (!o.items.length) {
+          rows.push([...base, '', '', '', '', ...tail].join(','));
+        } else {
+          o.items.forEach(i => {
+            rows.push([...base, csvCell(i.productName), i.quantity, csvMmk(i.price),
+              csvMmk(i.price * i.quantity), ...tail].join(','));
+          });
+        }
+      });
+      return rows.join('\n');
+    }
+
+    function productsCsv() {
+      const rows = ['id,name,category,sku,unit,stock,min_stock,cost_mmk,price_mmk,expiry_date'];
+      STATE.products.forEach(p => {
+        rows.push([p.id, csvCell(p.name), p.category, csvCell(p.sku || ''), csvCell(p.unit),
+          p.stock, p.minStock, csvMmk(p.cost), csvMmk(p.price),
+          p.expiryDate ? csvStamp(p.expiryDate) : ''].join(','));
+      });
+      return rows.join('\n');
+    }
+
+    function rawCsv() {
+      const rows = ['id,name,sku,unit,bought,used,remaining,min_threshold,expiry_date'];
+      STATE.rawMaterials.forEach(m => {
+        rows.push([m.id, csvCell(m.name), csvCell(m.sku || ''), csvCell(m.unit),
+          rawBought(m.id), rawUsed(m.id), m.stock, m.minStock,
+          m.expiryDate ? csvStamp(m.expiryDate) : ''].join(','));
+      });
+      return rows.join('\n');
+    }
+
+    function paymentsCsv() {
+      const rows = ['id,date,order_number,customer,amount_mmk,method'];
+      STATE.payments.forEach(p => {
+        const o = STATE.orders.find(x => x.id === p.orderId);
+        rows.push([p.id, csvStamp(p.timestamp), o ? o.orderNumber : ('#' + p.orderId),
+          csvCell(o ? o.customerName : ''), csvMmk(p.amount), p.method].join(','));
+      });
+      return rows.join('\n');
+    }
+
+    function closeoutText() {
+      const co = computeCloseout(startOfDay(Date.now()));
+      const dateStr = new Date(co.dayStart).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      return [
+        'BLANC COFFEE — DAY CLOSE-OUT', dateStr, '------------------------------',
+        `Orders: ${co.count}`, `Gross sales: ${formatMMK(co.gross)}`, `Discounts: -${formatMMK(co.discounts)}`,
+        `Net sales: ${formatMMK(co.net)}`, `Cash in (ledger): +${formatMMK(co.income)}`,
+        `Cash out (ledger): -${formatMMK(co.outcome)}`, `Net cash: ${formatMMK(co.netCash)}`,
+        '------------------------------',
+        ...co.byMethod.map(m => `${m.m}: ${formatMMK(m.a)}`),
+        '------------------------------',
+        ...co.topProducts.map(p => `${p.name} x${p.qty} = ${formatMMK(p.rev)}`),
+        '------------------------------',
+        `Tabs opened: ${formatMMK(co.tabsOpened)}`, `Tabs collected: ${formatMMK(co.tabsCollected)}`,
+        `Tabs outstanding: ${formatMMK(co.tabsOutstanding)}`
+      ].join('\n');
+    }
+
+    function exportData() {
+      const fmt = (document.getElementById('exportFormat') || {}).value || 'json';
+      if (fmt === 'json') { exportBackup(); return; }
+      const builders = {
+        finance: ['finance-ledger', transactionsCsv, 'csv', 'text/csv;charset=utf-8'],
+        orders: ['orders', ordersCsv, 'csv', 'text/csv;charset=utf-8'],
+        inventory: ['products', productsCsv, 'csv', 'text/csv;charset=utf-8'],
+        raw: ['raw-materials', rawCsv, 'csv', 'text/csv;charset=utf-8'],
+        payments: ['tab-payments', paymentsCsv, 'csv', 'text/csv;charset=utf-8'],
+        closeout: ['closeout', closeoutText, 'txt', 'text/plain;charset=utf-8']
+      };
+      const b = builders[fmt];
+      if (!b) return;
+      downloadFile(stampName('blanc-coffee-' + b[0], b[2]), b[1](), b[3]);
+      showToast('File exported — open it in Excel/Sheets.');
+    }
+
     function exportBackup() {
       const data = {
         app: 'blanc-coffee', version: 1, exportedAt: Date.now(),
@@ -1949,10 +2117,10 @@
 
       order.status = 'CANCELLED';
 
-      // Restore stock
+      // Restore stock (stocked products only — made-to-order took none)
       order.items.forEach(item => {
         const prod = STATE.products.find(p => p.id === item.productId);
-        if (prod) prod.stock += item.quantity;
+        if (prod && !prod.madeToOrder) prod.stock += item.quantity;
       });
 
       // Compensating refund transaction if it was paid
@@ -1984,7 +2152,7 @@
         const matchesCategory = STATE.inventoryCategoryFilter === 'ALL' 
           ? true 
           : STATE.inventoryCategoryFilter === 'LOW_STOCK'
-            ? p.stock <= p.minStock
+            ? !p.madeToOrder && p.stock <= p.minStock
             : p.category === STATE.inventoryCategoryFilter;
         const matchesSearch = !STATE.inventorySearchQuery ||
           p.name.toLowerCase().includes(STATE.inventorySearchQuery.toLowerCase()) ||
@@ -2001,7 +2169,7 @@
         filteredProducts.sort((a, b) => a.name.localeCompare(b.name));
       }
 
-      const lowStockCount = STATE.products.filter(p => p.stock <= p.minStock).length;
+      const lowStockCount = STATE.products.filter(p => !p.madeToOrder && p.stock <= p.minStock).length;
 
       container.innerHTML = `
         <!-- Products | Raw Materials tabs -->
@@ -2035,10 +2203,10 @@
             </div>
           ` : filteredProducts.map(p => {
             const margin = Math.round(((p.price - p.cost) / p.price) * 100);
-            const isLow = p.stock <= p.minStock;
-            const isOut = p.stock === 0;
-            const stockClass = isOut ? 'stock-out' : isLow ? 'stock-low' : 'stock-healthy';
-            const stockText = isOut ? 'Out of Stock (0)' : isLow ? `Low Stock (${p.stock} ${p.unit})` : `${p.stock} ${p.unit}`;
+            const isLow = !p.madeToOrder && p.stock <= p.minStock;
+            const isOut = !p.madeToOrder && p.stock === 0;
+            const stockClass = p.madeToOrder ? 'stock-healthy' : isOut ? 'stock-out' : isLow ? 'stock-low' : 'stock-healthy';
+            const stockText = p.madeToOrder ? '🔥 Made to order' : isOut ? 'Out of Stock (0)' : isLow ? `Low Stock (${p.stock} ${p.unit})` : `${p.stock} ${p.unit}`;
 
             return `
               <div class="item-card prod-card">
@@ -2059,7 +2227,8 @@
                   </div>
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span class="margin-pill">${margin}% margin</span>
-                    <button class="btn-primary-sm" onclick="openRestockModal(${p.id})">Restock</button>
+                    ${p.madeToOrder ? '' : `<button class="btn-primary-sm" onclick="openRestockModal(${p.id})">Restock</button>`}
+                    <button class="btn-action-sm" title="Toggle made-to-order" onclick="toggleMadeToOrder(${p.id})">${p.madeToOrder ? 'Track stock' : '🔥 Fresh?'}</button>
                   </div>
                 </div>
               </div>
@@ -2076,6 +2245,15 @@
 
     function setInventoryCategory(cat) {
       STATE.inventoryCategoryFilter = cat;
+      renderCurrentScreen();
+    }
+
+    function toggleMadeToOrder(prodId) {
+      const p = STATE.products.find(x => x.id === prodId);
+      if (!p) return;
+      p.madeToOrder = !p.madeToOrder;
+      showToast(p.madeToOrder ? `${p.name}: made to order — stock never blocks sales.` : `${p.name}: stocked — sales deduct inventory.`);
+      updateBadges();
       renderCurrentScreen();
     }
 
@@ -2554,7 +2732,7 @@
               <div style="display:flex; justify-content:space-between; align-items:center; background:var(--shop-surface-variant); padding:8px 10px; border-radius:8px;">
                 <div>
                   <div style="font-size:0.82rem; font-weight:700;">${p.name}</div>
-                  <div style="font-size:0.72rem; color:var(--shop-text-secondary);">${formatMMK(p.price)} • Stock: ${p.stock} ${p.unit}</div>
+                  <div style="font-size:0.72rem; color:var(--shop-text-secondary);">${formatMMK(p.price)} • ${p.madeToOrder ? '🔥 Made to order' : `Stock: ${p.stock} ${p.unit}`}</div>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                   <button class="btn-action-sm" style="padding:2px 8px;" onclick="adjustDraftItem(${p.id}, -1)">-</button>
@@ -2615,7 +2793,7 @@
       const current = window._orderDraft.selectedProducts[prodId] || 0;
       const target = current + delta;
       if (target < 0) return;
-      if (target > p.stock) {
+      if (!p.madeToOrder && target > p.stock) {
         alert(`Cannot add more: Only ${p.stock} ${p.unit} currently in stock.`);
         return;
       }
@@ -2670,7 +2848,7 @@
       for (const [prodIdStr, qty] of Object.entries(draft.selectedProducts)) {
         const prod = STATE.products.find(p => p.id === parseInt(prodIdStr));
         if (prod) {
-          prod.stock -= qty; // Deduct inventory
+          if (!prod.madeToOrder) prod.stock -= qty; // stocked only; fresh items skip
           totalAmount += (prod.price * qty);
           totalCost += (prod.cost * qty);
           items.push({
@@ -3037,6 +3215,13 @@
           <input type="date" class="input-field" id="newProdExpiry">
         </div>
 
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="newProdMTO" style="width:18px; height:18px;">
+            🔥 Made to order (produce fresh — stock never blocks sales)
+          </label>
+        </div>
+
         <button class="btn-submit" onclick="submitNewProduct()">Add to Inventory</button>
       `;
 
@@ -3053,6 +3238,7 @@
       const sku = document.getElementById('newProdSku').value.trim() || `PRD-${Date.now().toString().slice(-4)}`;
       const expiryVal = document.getElementById('newProdExpiry').value;
       const expiryDate = expiryVal ? new Date(expiryVal + 'T00:00:00').getTime() : null;
+      const madeToOrder = !!document.getElementById('newProdMTO').checked;
 
       if (!name || price <= 0) {
         alert("Please enter product name and selling price.");
@@ -3070,6 +3256,7 @@
         minStock: 5,
         sku,
         expiryDate,
+        madeToOrder,
         desc: "Specialty item added to catalog."
       });
 

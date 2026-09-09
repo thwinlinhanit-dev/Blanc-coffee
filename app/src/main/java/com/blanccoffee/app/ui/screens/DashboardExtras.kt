@@ -392,10 +392,15 @@ private fun trimQty(qty: Double): String =
 /** Offline backup card: export a JSON copy, re-import it on this or a new phone. */
 @Composable
 fun BackupCard(
-    onExport: () -> Unit,
+    onExportJson: () -> Unit,
+    onExportSheets: () -> Unit,
     onImport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showFormatChoice by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -411,7 +416,7 @@ fun BackupCard(
                 fontSize = 15.sp
             )
             Text(
-                text = "All data lives on this phone. Export a backup file regularly — restore it here or on a new device.",
+                text = "All data lives on this phone. Export regularly — restore it here or on a new device.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -421,7 +426,7 @@ fun BackupCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = onExport,
+                    onClick = { showFormatChoice = true },
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CoffeePrimary),
                     modifier = Modifier
@@ -443,6 +448,74 @@ fun BackupCard(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Restore", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+    }
+
+    if (showFormatChoice) {
+        AlertDialog(
+            onDismissRequest = { showFormatChoice = false },
+            title = { Text("Export format") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ExportFormatRow(
+                        title = "Backup file (.json)",
+                        desc = "Full restore on this or a new phone via Restore.",
+                        onClick = {
+                            showFormatChoice = false
+                            onExportJson()
+                        }
+                    )
+                    ExportFormatRow(
+                        title = "Spreadsheets (.zip)",
+                        desc = "CSVs for Excel/Sheets (ledger, orders, stock, tabs) + backup + close-out text.",
+                        onClick = {
+                            showFormatChoice = false
+                            onExportSheets()
+                        }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showFormatChoice = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ExportFormatRow(
+    title: String,
+    desc: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    text = desc,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = onClick,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CoffeePrimary)
+            ) {
+                Text("Save", fontSize = 12.sp)
             }
         }
     }

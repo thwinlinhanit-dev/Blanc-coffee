@@ -24,13 +24,20 @@ data class Product(
     val description: String = "",
     /** Epoch millis of expiry, or null when the product doesn't expire. */
     val expiryDate: Long? = null,
+    /**
+     * True when this product is produced fresh per order (made-to-order).
+     * Made-to-order products skip finished-stock checks, deduction and restore —
+     * selling them never blocks and never touches [stockQuantity]. Raw ingredients
+     * linked through recipes are still auto-deducted (the real constraint).
+     */
+    val madeToOrder: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()
 ) {
     val isLowStock: Boolean
-        get() = stockQuantity in 1..minStockThreshold
+        get() = !madeToOrder && stockQuantity in 1..minStockThreshold
 
     val isOutOfStock: Boolean
-        get() = stockQuantity <= 0
+        get() = !madeToOrder && stockQuantity <= 0
 
     val profitMargin: Double
         get() = if (sellingPrice > 0) ((sellingPrice - costPrice) / sellingPrice) * 100 else 0.0

@@ -18,3 +18,5 @@ local.properties
 debug.keystore
 *.log
 .npm-cache/
+.idea/
+gradle/gradle-daemon-jvm.properties

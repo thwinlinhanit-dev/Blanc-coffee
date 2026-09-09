@@ -20,6 +20,7 @@ import com.blanccoffee.app.data.model.ProductRecipe
 import com.blanccoffee.app.data.model.RawMaterial
 import com.blanccoffee.app.data.model.RawMaterialMovement
 import com.blanccoffee.app.data.model.RawMovementType
+import com.blanccoffee.app.data.model.toShareText
 import com.blanccoffee.app.data.model.Transaction
 import com.blanccoffee.app.data.model.TransactionCategory
 import com.blanccoffee.app.data.model.TransactionType
@@ -129,6 +130,8 @@ class ShopRepository(
      * Business rules enforced here:
      * - Rejects empty item lists and any line whose quantity exceeds available stock by
      *   throwing [IllegalArgumentException] (the UI also validates before calling this).
+     *   Made-to-order products skip the stock check/deduction entirely (they are
+     *   produced fresh; only their raw-ingredient recipes are consumed).
      * - Generates collision-free order numbers from MAX(existing "ORD-<n>") instead of row
      *   counts, so numbers stay unique even after orders have been deleted.
      * - [discountAmount] is clamped to [0, gross]; income is always recorded on the
@@ -151,7 +154,11 @@ class ShopRepository(
         discountReason: String = ""
     ): CustomerOrder = withContext(Dispatchers.IO) {
         // Hard guard: never allow creating an order that exceeds available stock.
-        val insufficient = items.filter { (prod, qty) -> qty <= 0 || qty > prod.stockQuantity }
+        // Made-to-order products are produced fresh, so they skip the stock check
+        // (raw ingredients linked through recipes are still auto-deducted below).
+        val insufficient = items.filter { (prod, qty) ->
+            qty <= 0 || (!prod.madeToOrder && qty > prod.stockQuantity)
+        }
         if (items.isEmpty() || insufficient.isNotEmpty()) {
             val detail = insufficient.joinToString { (prod, qty) ->
                 "${prod.name}: requested $qty, available ${prod.stockQuantity}"
@@ -206,9 +213,10 @@ class ShopRepository(
         }
         orderDao.insertOrderItems(orderItems)
 
-        // Deduct inventory in real-time
+        // Deduct finished inventory in real-time (made-to-order is produced
+        // fresh, so it touches no finished stock — only raw ingredients below).
         for ((prod, qty) in items) {
-            productDao.deductStock(prod.id, qty)
+            if (!prod.madeToOrder) productDao.deductStock(prod.id, qty)
         }
 
         // Auto-consume raw ingredients via recipes (never blocks the order —
@@ -420,11 +428,13 @@ class ShopRepository(
         database.withTransaction {
         orderDao.updateOrderStatus(order.id, OrderStatus.CANCELLED.name, null)
 
-        // Return the exact ordered quantities back to inventory (only on first cancellation).
+        // Return the exact ordered quantities back to inventory (only on first
+        // cancellation, and only for stocked products — made-to-order never
+        // took finished stock, so there is nothing to return).
         if (!alreadyCancelled) {
             for (item in orderWithItems.items) {
                 val prod = productDao.getProductById(item.productId) ?: continue
-                productDao.updateStock(prod.id, prod.stockQuantity + item.quantity)
+                if (!prod.madeToOrder) productDao.updateStock(prod.id, prod.stockQuantity + item.quantity)
             }
         }
 
@@ -646,6 +656,52 @@ class ShopRepository(
         transactionDao.deleteTransaction(transaction)
     }
 
+    /**
+     * Builds the multi-format export bundle: full-restore `backup.json` plus
+     * spreadsheet-ready CSVs (ledger, orders, products, raw materials, payments)
+     * and today's close-out as plain text — packed as one ZIP byte array.
+     * Everything is computed from one-shot DAO reads on [Dispatchers.IO].
+     */
+    suspend fun exportSheetsBundle(): ByteArray = withContext(Dispatchers.IO) {
+        val products = productDao.getAllProductsOnce()
+        val orders = orderDao.getAllOrdersOnce()
+        val itemsByOrder = orderDao.getAllOrderItemsOnce().groupBy { it.orderId }
+        val ordersWithItems = orders.map { o ->
+            OrderWithItems(order = o, items = itemsByOrder[o.id].orEmpty())
+        }
+        val transactions = transactionDao.getAllTransactionsOnce()
+        val raws = rawMaterialDao.getAllRawMaterialsOnce()
+        val movements = rawMaterialDao.getAllMovementsOnce()
+        val payments = customerPaymentDao.getAllPaymentsOnce()
+        val ordersById = ordersWithItems.associateBy { it.order.id }
+
+        val now = System.currentTimeMillis()
+        val dayStart = com.blanccoffee.app.data.model.startOfDay(now)
+        val paidBy = payments.groupBy { it.orderId }.mapValues { (_, l) -> l.sumOf { it.amount } }
+        val closeout = com.blanccoffee.app.data.model.computeCloseout(
+            dayStart, dayStart + 24 * 3600 * 1000L,
+            ordersWithItems, transactions, movements, raws, payments, paidBy
+        )
+
+        val stamp = exportFileDate(now)
+        buildExportZip(
+            mapOf(
+                "backup.json" to exportBackup(),
+                "transactions.csv" to transactionsCsv(transactions),
+                "orders.csv" to ordersCsv(ordersWithItems),
+                "products.csv" to productsCsv(products),
+                "raw_materials.csv" to rawMaterialsCsv(raws, movements),
+                "payments.csv" to paymentsCsv(payments, ordersById),
+                "closeout-$stamp.txt" to closeout.toShareText(),
+                "README.txt" to
+                    "BLANC COFFEE export ($stamp)\n" +
+                    "backup.json = full restore via Dashboard > Restore.\n" +
+                    "CSV files open in Excel / Google Sheets.\n" +
+                    "closeout-$stamp.txt = today's Z-report.\n"
+            )
+        )
+    }
+
     // ---------- Backup & restore (offline JSON, no new dependencies) ----------
 
     companion object {
@@ -678,6 +734,7 @@ class ShopRepository(
                     .put("sku", p.sku)
                     .put("description", p.description)
                     .put("lastUpdated", p.lastUpdated)
+                    .put("madeToOrder", p.madeToOrder)
                     .apply { if (p.expiryDate != null) put("expiryDate", p.expiryDate) })
             }
         })
@@ -823,6 +880,7 @@ class ShopRepository(
                         sku = o.optString("sku", ""),
                         description = o.optString("description", ""),
                         expiryDate = o.optLongOrNull("expiryDate"),
+                        madeToOrder = o.optBoolean("madeToOrder", false),
                         lastUpdated = o.optLong("lastUpdated", System.currentTimeMillis())
                     )
                 )
@@ -998,6 +1056,7 @@ class ShopRepository(
                 sellingPrice = 20000.0,
                 minStockThreshold = 8,
                 sku = "COF-ETH-250",
+                madeToOrder = true,
                 description = "Light roast with floral notes of jasmine, bergamot, and sweet citrus finish. 250g whole bean."
             ),
             Product(
@@ -1009,6 +1068,7 @@ class ShopRepository(
                 sellingPrice = 18000.0,
                 minStockThreshold = 6,
                 sku = "COF-ESP-500",
+                madeToOrder = true,
                 description = "Bold, velvety blend of Colombia & Sumatra with notes of dark chocolate and toasted almond. 500g."
             ),
             Product(
@@ -1020,6 +1080,7 @@ class ShopRepository(
                 sellingPrice = 6500.0,
                 minStockThreshold = 10,
                 sku = "COF-NCB-330",
+                madeToOrder = true,
                 description = "Smooth, micro-infused cold brew draft in 330ml recyclable sleek cans.",
                 expiryDate = now + 20 * day // perishable demo: expires in 20 days
             ),
@@ -1032,6 +1093,7 @@ class ShopRepository(
                 sellingPrice = 14000.0,
                 minStockThreshold = 5,
                 sku = "COF-DRP-10",
+                madeToOrder = true,
                 description = "Single-serve pour-over filter bags filled with fresh medium roast specialty grind."
             ),
 
@@ -1078,6 +1140,7 @@ class ShopRepository(
                 sellingPrice = 13500.0,
                 minStockThreshold = 5,
                 sku = "TEA-MLC-500",
+                madeToOrder = true,
                 description = "Pure ceremonial matcha syrup blend for quick hot or iced matcha lattes at home. 500ml."
             ),
 
@@ -1091,6 +1154,7 @@ class ShopRepository(
                 sellingPrice = 22000.0,
                 minStockThreshold = 8,
                 sku = "NUT-SLT-200",
+                madeToOrder = true,
                 description = "Dry roasted premium grade whole macadamias lightly seasoned with pure pink Himalayan salt. 200g."
             ),
             Product(
@@ -1113,6 +1177,7 @@ class ShopRepository(
                 sellingPrice = 24000.0,
                 minStockThreshold = 6,
                 sku = "NUT-HNY-200",
+                madeToOrder = true,
                 description = "Crunchy golden roasted nuts tossed in organic wildflower honey and a touch of sea salt. 200g."
             ),
             Product(
@@ -1124,6 +1189,7 @@ class ShopRepository(
                 sellingPrice = 26000.0,
                 minStockThreshold = 5,
                 sku = "NUT-MTC-180",
+                madeToOrder = true,
                 description = "Roasted macadamia core enrobed in smooth Belgian white chocolate infused with Uji matcha. 180g."
             )
         )

@@ -61,6 +61,16 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
 }
 
 /**
+ * Migration 3 -> 4: per-product made-to-order flag (fresh production skips
+ * finished-stock tracking). Additive, existing rows default to stocked (0).
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `products` ADD COLUMN `madeToOrder` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
  * Migration 2 -> 3: credit tabs (customer_payments), order discounts and
  * expiry dates for products + raw materials. All additive — no data touched.
  */
@@ -95,7 +105,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         ProductRecipe::class,
         CustomerPayment::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -121,7 +131,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     // Migrations preserve real shop data (additive only).
                     // fallbackToDestructiveMigration stays as a last-resort safety net.
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

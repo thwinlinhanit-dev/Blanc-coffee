@@ -26,8 +26,13 @@ no cloud sync, no authentication, no AI features, no network permissions.
 - **7-day sales trend chart** (net revenue per day) with week total
 - **Day close-out report**: net sales, cash in/out, per-method split, top sellers,
   raw used, tabs opened/collected/outstanding — with one-tap shareable text
-- **Backup card**: export the whole database to a versioned JSON file, restore it
-  here or on a new phone (fully offline, no permissions needed)
+- **Backup card**: export the whole database in various formats, restore a backup
+  here or on a new phone (fully offline, no permissions needed):
+  - `backup.json` — full restore via Restore
+  - **Spreadsheets `.zip`** — `transactions.csv`, `orders.csv` (one row per item,
+    with gross/discount/net), `products.csv`, `raw_materials.csv`
+    (bought/used/remaining), `payments.csv` (tab cash-ins), today's close-out
+    `.txt`, plus a copy of `backup.json` — opens in Excel / Google Sheets
 - Recent activity feed (orders + finance entries)
 
 ### 🧾 Orders
@@ -59,6 +64,11 @@ no cloud sync, no authentication, no AI features, no network permissions.
 - Quick stock adjuster, full restock flow (validated quantity > 0, cost ≥ 0) that
   automatically logs a `RESTOCKING` expense transaction
 - Edit / delete products (delete requires confirmation)
+- **🔥 Made to order** — products produced fresh per order skip finished-stock
+  tracking entirely: sales never block on stock, no deduction, no restore on
+  cancel. Raw ingredients linked through recipes are still auto-deducted (the
+  real constraint). Toggle per product (`Fresh?` / `Track stock`) or in the
+  product form; low-stock counts and alerts ignore made-to-order items
 - **Expiry dates** — optional `YYYY-MM-DD` per product and per raw ingredient;
   expired (⛔) and expiring-this-week (⏳) badges on cards plus a dashboard banner
 - **Raw Materials tab** — track ingredients that go *into* products
@@ -99,8 +109,10 @@ com.blanccoffee.app
 
 ## Business rules enforced by the repository
 
-1. **No overselling** — orders whose quantity exceeds available stock are rejected
-   (`IllegalArgumentException`, surfaced as a snackbar by the ViewModel).
+1. **No overselling (stocked products)** — orders whose quantity exceeds available
+   stock are rejected (`IllegalArgumentException`, surfaced as a snackbar by the
+   ViewModel). Made-to-order products skip this check: they are produced fresh,
+   so any quantity can be sold (raw-ingredient recipes still apply).
 2. **Single income per order** — before inserting an `ORDER_SALE` income row, the
    repository checks `TransactionDao.countPositiveIncomeForOrder(orderId)`; income is
    recorded when an order is created paid, when a tab is settled in full, or when
@@ -146,9 +158,9 @@ environment variables (falls back to `my-upload-key.jks` in the project root).
 
 ## Notes & limitations
 
-- Database schema is v3 (`customer_payments` + order discount columns + product/raw
-  expiry columns, via `MIGRATION_2_3`; v2 added the raw-material tables via
-  `MIGRATION_1_2`. All migrations are additive, so real shop data is preserved on
+- Database schema is v4 (per-product `madeToOrder` via `MIGRATION_3_4`; v3 added
+  `customer_payments`, order discounts and expiry columns; v2 added the
+  raw-material tables. All migrations are additive, so real shop data is preserved on
   upgrade; `fallbackToDestructiveMigration` remains only as a last-resort safety net).
 - Single-device, single-user: no staff accounts/PIN yet (backup/restore covers device
   loss). All data stays offline on the device.

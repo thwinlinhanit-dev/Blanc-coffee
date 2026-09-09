@@ -436,6 +436,9 @@ class ShopViewModel(application: Application) : AndroidViewModel(application) {
     /** Suspending export for file-picker flows (errors throw to the caller). */
     suspend fun exportBackupNow(): String = repository.exportBackup()
 
+    /** Suspending multi-format ZIP bundle export for file-picker flows. */
+    suspend fun exportSheetsNow(): ByteArray = repository.exportSheetsBundle()
+
     /** Restores the database from an [exportBackup] JSON string (atomic). */
     fun importBackup(json: String, onSuccess: () -> Unit = {}) = launchWrite(onSuccess) {
         repository.importBackup(json)
