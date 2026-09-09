@@ -1,0 +1,2726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BLANC COFFEE — Shop Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --coffee-primary: #4E2C1D;
+      --coffee-primary-light: #7A4A33;
+      --coffee-primary-container: #F3E9E2;
+      --coffee-on-primary-container: #33160B;
+      --matcha-secondary: #3B6737;
+      --matcha-container: #E4EFE3;
+      --matcha-on-container: #143012;
+      --macadamia-tertiary: #A6711C;
+      --macadamia-container: #FDF2DC;
+      --macadamia-on-container: #382200;
+      --shop-bg: #F8F5F1;
+      --shop-surface: #FFFFFF;
+      --shop-surface-variant: #EFE8E0;
+      --shop-text-primary: #221B17;
+      --shop-text-secondary: #6E645D;
+      --shop-outline: #E0D7D0;
+      --shop-card-shadow: 0 4px 20px rgba(78, 44, 29, 0.06);
+      --income-green: #2E7D32;
+      --income-bg: #E8F5E9;
+      --outcome-red: #C62828;
+      --outcome-bg: #FFEBEE;
+      --warning-orange: #E65100;
+      --warning-bg: #FFF3E0;
+      --pending-blue: #1565C0;
+      --pending-bg: #E3F2FD;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+    }
+
+    [data-theme="dark"] {
+      --coffee-primary: #E2B7A1;
+      --coffee-primary-light: #C08C73;
+      --coffee-primary-container: #381D11;
+      --coffee-on-primary-container: #F8ECE5;
+      --matcha-secondary: #A1D39D;
+      --matcha-container: #234C20;
+      --matcha-on-container: #E0F2DF;
+      --macadamia-tertiary: #F7C880;
+      --macadamia-container: #4C3105;
+      --macadamia-on-container: #FEF6E8;
+      --shop-bg: #161210;
+      --shop-surface: #221C19;
+      --shop-surface-variant: #2E2521;
+      --shop-text-primary: #EFEAE5;
+      --shop-text-secondary: #AEA39B;
+      --shop-outline: #4D423B;
+      --shop-card-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      --income-bg: #1B3320;
+      --outcome-bg: #3B1B1B;
+      --warning-bg: #3B2712;
+      --pending-bg: #13273D;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0d0c0b;
+      color: var(--shop-text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px 10px;
+      transition: background-color 0.3s;
+    }
+
+    /* Top Control Bar */
+    .top-bar {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding: 0 4px;
+    }
+
+    .brand-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #F8F5F1;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-pill span.logo-icon {
+      background: linear-gradient(135deg, #7A4A33, #4E2C1D);
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-toggle {
+      background: #25201c;
+      color: #ded6cf;
+      border: 1px solid #3d352e;
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-toggle:hover {
+      background: #332b26;
+      color: #fff;
+    }
+
+    /* Device Mockup Shell */
+    .device-shell {
+      width: 100%;
+      max-width: 440px;
+      height: 890px;
+      max-height: 92vh;
+      background: var(--shop-bg);
+      border-radius: 44px;
+      border: 8px solid #2b2520;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: background-color 0.3s;
+    }
+
+    .device-shell.fullscreen {
+      max-width: 900px;
+      height: 92vh;
+      border-radius: 24px;
+      border-width: 4px;
+    }
+
+    /* Phone Status Bar */
+    .status-bar {
+      height: 40px;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--shop-text-primary);
+      z-index: 10;
+      flex-shrink: 0;
+    }
+
+    .camera-notch {
+      width: 90px;
+      height: 18px;
+      background: #2b2520;
+      border-radius: 0 0 12px 12px;
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    /* App Header */
+    .app-header {
+      padding: 8px 20px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--shop-bg);
+      flex-shrink: 0;
+    }
+
+    .header-title-wrap h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--shop-text-primary);
+      letter-spacing: -0.3px;
+    }
+
+    .header-title-wrap p {
+      font-size: 0.78rem;
+      color: var(--shop-text-secondary);
+      font-weight: 500;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-offline {
+      background: var(--matcha-container);
+      color: var(--matcha-secondary);
+      padding: 4px 9px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .badge-offline::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--matcha-secondary);
+    }
+
+    /* Main Scrollable Viewport */
+    .screen-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 16px 85px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .screen-content::-webkit-scrollbar {
+      width: 4px;
+    }
+    .screen-content::-webkit-scrollbar-thumb {
+      background: var(--shop-outline);
+      border-radius: 4px;
+    }
+
+    /* Card Component */
+    .card {
+      background: var(--shop-surface);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      border: 1px solid var(--shop-outline);
+      box-shadow: var(--shop-card-shadow);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    /* Hero Net Profit Card */
+    .hero-card {
+      background: linear-gradient(135deg, #4E2C1D 0%, #30170B 100%);
+      color: #FFFFFF;
+      border-radius: var(--radius-xl);
+      padding: 22px;
+      box-shadow: 0 10px 28px rgba(78, 44, 29, 0.25);
+      position: relative;
+      overflow: hidden;
+    }
+
+    [data-theme="dark"] .hero-card {
+      background: linear-gradient(135deg, #3A1F13 0%, #201108 100%);
+      border: 1px solid rgba(226, 183, 161, 0.2);
+    }
+
+    .hero-card::after {
+      content: '☕';
+      position: absolute;
+      right: -10px;
+      bottom: -15px;
+      font-size: 5rem;
+      opacity: 0.12;
+      pointer-events: none;
+    }
+
+    .hero-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .hero-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: rgba(255,255,255,0.75);
+      font-weight: 600;
+    }
+
+    .hero-period-pill {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #FFFFFF;
+    }
+
+    .hero-amount {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 16px;
+      color: #FFFFFF;
+    }
+
+    .hero-metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      background: rgba(0,0,0,0.18);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .metric-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .metric-item .metric-label {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 2px;
+    }
+
+    .metric-item .metric-val {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+
+    .metric-val.green { color: #81C784; }
+    .metric-val.red { color: #E57373; }
+    .metric-val.gold { color: #FFD54F; }
+
+    /* Period Filter Chips */
+    .chips-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .chips-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chip {
+      background: var(--shop-surface-variant);
+      color: var(--shop-text-secondary);
+      border: 1px solid transparent;
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .chip.active {
+      background: var(--coffee-primary);
+      color: #FFFFFF;
+      box-shadow: 0 3px 10px rgba(78, 44, 29, 0.25);
+    }
+
+    [data-theme="dark"] .chip.active {
+      background: var(--coffee-primary);
+      color: #201108;
+    }
+
+    /* Low Stock Warning Banner */
+    .alert-banner {
+      background: var(--warning-bg);
+      border: 1px solid rgba(230, 81, 0, 0.3);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    .alert-banner:hover {
+      transform: translateY(-1px);
+    }
+
+    .alert-content {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alert-icon {
+      font-size: 1.25rem;
+    }
+
+    .alert-text h4 {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--warning-orange);
+    }
+
+    .alert-text p {
+      font-size: 0.74rem;
+      color: var(--shop-text-secondary);
+    }
+
+    .alert-btn {
+      background: var(--warning-orange);
+      color: #FFF;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Section Headings */
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+      margin-bottom: 4px;
+    }
+
+    .section-head h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--shop-text-primary);
+    }
+
+    .section-head a, .section-head button {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--coffee-primary-light);
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    /* Category Breakdown Bars */
+    .cat-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .cat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .cat-row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .cat-name-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cat-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    .cat-dot.coffee { background: var(--coffee-primary-light); }
+    .cat-dot.matcha { background: var(--matcha-secondary); }
+    .cat-dot.macadamia { background: var(--macadamia-tertiary); }
+
+    .cat-progress-track {
+      height: 7px;
+      background: var(--shop-surface-variant);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .cat-progress-fill {
+      height: 100%;
+      border-radius: 10px;
+      transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .cat-progress-fill.coffee { background: var(--coffee-primary-light); }
+    .cat-progress-fill.matcha { background: var(--matcha-secondary); }
+    .cat-progress-fill.macadamia { background: var(--macadamia-tertiary); }
+
+    /* Recent Feed & Orders List */
+    .item-card {
+      background: var(--shop-surface);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      border: 1px solid var(--shop-outline);
+      box-shadow: var(--shop-card-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .item-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--shop-text-primary);
+    }
+
+    .item-sub {
+      font-size: 0.74rem;
+      color: var(--shop-text-secondary);
+      margin-top: 2px;
+    }
+
+    .item-badge {
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-pending { background: var(--pending-bg); color: var(--pending-blue); }
+    .badge-preparing { background: var(--warning-bg); color: var(--warning-orange); }
+    .badge-completed { background: var(--income-bg); color: var(--income-green); }
+    .badge-cancelled { background: var(--outcome-bg); color: var(--outcome-red); }
+
+    .badge-paid { background: var(--income-bg); color: var(--income-green); }
+    .badge-unpaid { background: var(--outcome-bg); color: var(--outcome-red); }
+
+    .order-items-preview {
+      background: var(--shop-surface-variant);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.76rem;
+      color: var(--shop-text-primary);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .order-item-line {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .item-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 4px;
+      border-top: 1px dashed var(--shop-outline);
+    }
+
+    .total-price {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--coffee-primary-light);
+    }
+
+    [data-theme="dark"] .total-price {
+      color: var(--coffee-primary);
+    }
+
+    .btn-action-sm {
+      background: var(--shop-surface-variant);
+      border: 1px solid var(--shop-outline);
+      color: var(--shop-text-primary);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-action-sm:hover {
+      background: var(--coffee-primary);
+      color: #FFFFFF;
+      border-color: var(--coffee-primary);
+    }
+
+    .btn-primary-sm {
+      background: var(--coffee-primary);
+      border: none;
+      color: #FFFFFF;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    [data-theme="dark"] .btn-primary-sm {
+      background: var(--coffee-primary);
+      color: #1f1109;
+    }
+
+    /* Floating / Fixed Bottom Bar */
+    .bottom-nav {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 70px;
+      background: var(--shop-surface);
+      border-top: 1px solid var(--shop-outline);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 8px;
+      z-index: 20;
+    }
+
+    .nav-btn {
+      background: none;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: var(--shop-text-secondary);
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      flex: 1;
+      padding: 6px 0;
+      border-radius: 12px;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .nav-btn .icon {
+      font-size: 1.25rem;
+      transition: transform 0.2s;
+    }
+
+    .nav-btn.active {
+      color: var(--coffee-primary);
+    }
+
+    [data-theme="dark"] .nav-btn.active {
+      color: var(--coffee-primary);
+    }
+
+    .nav-btn.active .icon {
+      transform: scale(1.15);
+    }
+
+    .nav-btn .badge-count {
+      position: absolute;
+      top: 2px;
+      right: calc(50% - 18px);
+      background: var(--outcome-red);
+      color: #fff;
+      font-size: 0.62rem;
+      font-weight: 700;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Modal Sheet */
+    .modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-sheet {
+      background: var(--shop-surface);
+      border-radius: 28px 28px 0 0;
+      padding: 22px 20px 28px;
+      max-height: 84%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-backdrop.open .modal-sheet {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .modal-close {
+      background: var(--shop-surface-variant);
+      border: none;
+      color: var(--shop-text-secondary);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--shop-text-secondary);
+    }
+
+    .input-field, select.input-field {
+      background: var(--shop-surface-variant);
+      border: 1px solid var(--shop-outline);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      color: var(--shop-text-primary);
+      outline: none;
+      font-family: inherit;
+      width: 100%;
+    }
+
+    .input-field:focus {
+      border-color: var(--coffee-primary-light);
+    }
+
+    .btn-submit {
+      background: var(--coffee-primary);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 6px;
+      box-shadow: 0 4px 14px rgba(78, 44, 29, 0.25);
+    }
+
+    [data-theme="dark"] .btn-submit {
+      background: var(--coffee-primary);
+      color: #24140a;
+    }
+
+    /* Receipt Slip Styling */
+    .receipt-slip {
+      background: #FFFFFF;
+      color: #1a1a1a;
+      border: 1px dashed #bbb;
+      border-radius: 12px;
+      padding: 18px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .receipt-title {
+      text-align: center;
+      font-weight: bold;
+      font-size: 1.05rem;
+      margin-bottom: 4px;
+    }
+
+    .receipt-divider {
+      border-bottom: 1px dashed #888;
+      margin: 10px 0;
+    }
+
+    /* Floating Action Button (FAB) */
+    .fab {
+      position: absolute;
+      bottom: 82px;
+      right: 20px;
+      background: var(--coffee-primary);
+      color: #FFFFFF;
+      width: 52px;
+      height: 52px;
+      border-radius: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(78, 44, 29, 0.35);
+      z-index: 25;
+      transition: transform 0.2s;
+    }
+
+    .fab:hover {
+      transform: scale(1.08);
+    }
+
+    [data-theme="dark"] .fab {
+      background: var(--coffee-primary);
+      color: #201108;
+    }
+
+    /* Search Bar */
+    .search-wrap {
+      position: relative;
+    }
+
+    .search-wrap input {
+      padding-left: 36px;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--shop-text-secondary);
+      font-size: 0.85rem;
+    }
+
+    /* Product Grid Card */
+    .prod-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .prod-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .prod-sku {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--shop-text-secondary);
+      background: var(--shop-surface-variant);
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.4px;
+    }
+
+    .stock-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 8px;
+    }
+
+    .stock-healthy { background: var(--income-bg); color: var(--income-green); }
+    .stock-low { background: var(--warning-bg); color: var(--warning-orange); }
+    .stock-out { background: var(--outcome-bg); color: var(--outcome-red); }
+
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-top: 4px;
+    }
+
+    .selling-price {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--coffee-primary-light);
+    }
+
+    [data-theme="dark"] .selling-price {
+      color: var(--coffee-primary);
+    }
+
+    .cost-price {
+      font-size: 0.74rem;
+      color: var(--shop-text-secondary);
+    }
+
+    .margin-pill {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--matcha-secondary);
+      background: var(--matcha-container);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: absolute;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: #25201C;
+      color: #FFFFFF;
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- External Control Bar -->
+  <div class="top-bar">
+    <div class="brand-pill">
+      <span class="logo-icon">☕</span>
+      <span>BLANC COFFEE</span>
+    </div>
+    <div class="controls-group">
+      <button class="btn-toggle" id="themeToggleBtn" onclick="toggleTheme()">
+        <span id="themeIcon">🌙</span> Dark
+      </button>
+      <button class="btn-toggle" id="viewToggleBtn" onclick="toggleViewSize()">
+        <span id="viewIcon">📱</span> Phone View
+      </button>
+    </div>
+  </div>
+
+  <!-- Android Phone Device Shell -->
+  <div class="device-shell" id="deviceShell">
+    
+    <!-- Camera Notch -->
+    <div class="camera-notch"></div>
+
+    <!-- Phone Status Bar -->
+    <div class="status-bar">
+      <span id="clockTime">09:41</span>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <span style="font-size:0.75rem;">📶 5G</span>
+        <span style="font-size:0.75rem;">🔋 98%</span>
+      </div>
+    </div>
+
+    <!-- App Header -->
+    <div class="app-header">
+      <div class="header-title-wrap">
+        <h1 id="screenTitle">BLANC COFFEE</h1>
+        <p id="screenSubtitle">Shop Manager • Myanmar</p>
+      </div>
+      <div class="header-actions">
+        <span class="badge-offline">Offline Room DB</span>
+      </div>
+    </div>
+
+    <!-- Screen Content Container -->
+    <div class="screen-content" id="screenContent">
+      <!-- Injected dynamically via JS -->
+    </div>
+
+    <!-- Floating Action Button -->
+    <button class="fab" id="mainFab" onclick="onFabClick()">+</button>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" onclick="switchTab('dashboard')" id="nav-dashboard">
+        <span class="icon">📊</span>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-btn" onclick="switchTab('orders')" id="nav-orders">
+        <span class="icon">🧾</span>
+        <span>Orders</span>
+        <span class="badge-count" id="pendingCountBadge">2</span>
+      </button>
+      <button class="nav-btn" onclick="switchTab('inventory')" id="nav-inventory">
+        <span class="icon">📦</span>
+        <span>Inventory</span>
+        <span class="badge-count" id="lowStockBadge" style="display:none;">3</span>
+      </button>
+      <button class="nav-btn" onclick="switchTab('finance')" id="nav-finance">
+        <span class="icon">💰</span>
+        <span>Finance</span>
+      </button>
+    </nav>
+
+    <!-- Toast Component -->
+    <div class="toast" id="appToast">
+      <span id="toastMsg">Action completed successfully</span>
+    </div>
+
+    <!-- Modal Backdrop & Bottom Sheet -->
+    <div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+      <div class="modal-sheet" id="modalSheet" onclick="event.stopPropagation()">
+        <!-- Dynamic modal content -->
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- Application State & Sample MMK Data (matches Room ShopRepository) ---
+    const STATE = {
+      currentTab: 'dashboard',
+      dashboardPeriod: 'today', // today, 7d, 30d, all
+      orderStatusFilter: 'ALL',
+      customerSearchQuery: '',
+      inventoryCategoryFilter: 'ALL',
+      inventorySearchQuery: '',
+      inventorySort: 'name',
+      inventoryTab: 'products', // products | raw
+      financeFilter: 'ALL',
+      financeSearchQuery: '',
+      
+      products: [
+        { id: 1, name: "Single-Origin Ethiopian Yirgacheffe", category: "COFFEE", stock: 28, unit: "bags", cost: 11000, price: 20000, minStock: 8, sku: "COF-ETH-250", desc: "Light roast with floral notes of jasmine, bergamot, and sweet citrus finish. 250g whole bean." },
+        { id: 2, name: "Dark Espresso Roast Beans", category: "COFFEE", stock: 15, unit: "bags", cost: 9500, price: 18000, minStock: 6, sku: "COF-ESP-500", desc: "Bold, velvety blend of Colombia & Sumatra with notes of dark chocolate and toasted almond. 500g." },
+        { id: 3, name: "Nitro Cold Brew Ready-to-Drink", category: "COFFEE", stock: 4, unit: "cans", cost: 3200, price: 6500, minStock: 10, sku: "COF-NCB-330", desc: "Smooth, micro-infused cold brew draft in 330ml recyclable sleek cans." },
+        { id: 4, name: "Artisan Drip Coffee Pouches (10pk)", category: "COFFEE", stock: 22, unit: "boxes", cost: 7000, price: 14000, minStock: 5, sku: "COF-DRP-10", desc: "Single-serve pour-over filter bags filled with fresh medium roast specialty grind." },
+        { id: 5, name: "Uji Ceremonial Grade Matcha", category: "GREEN_TEA", stock: 12, unit: "tins", cost: 22000, price: 42000, minStock: 5, sku: "TEA-MTC-050", desc: "First harvest stone-ground green tea from Kyoto, Japan. Vibrant jade color, rich umami." },
+        { id: 6, name: "Organic Shizuoka Sencha", category: "GREEN_TEA", stock: 18, unit: "packs", cost: 8500, price: 17000, minStock: 6, sku: "TEA-SNC-100", desc: "Steamed high-grown loose green tea leaves with refreshing grassy sweetness and golden liquor. 100g." },
+        { id: 7, name: "Genmaicha Roasted Brown Rice Tea", category: "GREEN_TEA", stock: 2, unit: "packs", cost: 7500, price: 15000, minStock: 5, sku: "TEA-GMC-150", desc: "Traditional green tea blended with nutty toasted brown rice and popped kernels. 150g." },
+        { id: 8, name: "Matcha Latte Concentrate Bottle", category: "GREEN_TEA", stock: 14, unit: "bottles", cost: 6000, price: 13500, minStock: 5, sku: "TEA-MLC-500", desc: "Pure ceremonial matcha syrup blend for quick hot or iced matcha lattes at home. 500ml." },
+        { id: 9, name: "Roasted Himalayan Salt Macadamias", category: "MACADAMIA_NUT", stock: 25, unit: "pouches", cost: 11000, price: 22000, minStock: 8, sku: "NUT-SLT-200", desc: "Dry roasted premium grade whole macadamias lightly seasoned with pure pink Himalayan salt. 200g." },
+        { id: 10, name: "Raw Organic Macadamia Kernels", category: "MACADAMIA_NUT", stock: 20, unit: "packs", cost: 14000, price: 28000, minStock: 5, sku: "NUT-RAW-400", desc: "Unsalted, unroasted buttery fresh macadamia nuts. Perfect for baking or wholesome snacking. 400g." },
+        { id: 11, name: "Wildflower Honey Glazed Macadamias", category: "MACADAMIA_NUT", stock: 3, unit: "pouches", cost: 12000, price: 24000, minStock: 6, sku: "NUT-HNY-200", desc: "Crunchy golden roasted nuts tossed in organic wildflower honey and a touch of sea salt. 200g." },
+        { id: 12, name: "Matcha White Chocolate Macadamias", category: "MACADAMIA_NUT", stock: 16, unit: "boxes", cost: 13000, price: 26000, minStock: 5, sku: "NUT-MTC-180", desc: "Roasted macadamia core enrobed in smooth Belgian white chocolate infused with Uji matcha. 180g." }
+      ],
+
+      orders: [
+        {
+          id: 1,
+          orderNumber: "ORD-1001",
+          customerName: "ဒေါ်အေးအေးသင်း (Daw Aye Aye Thin)",
+          customerPhone: "+95 9 789 123456",
+          customerNote: "မွေးနေ့လက်ဆောင် ထုပ်ပိုးပေးပါ",
+          status: "COMPLETED",
+          paymentStatus: "PAID",
+          paymentMethod: "KBZPAY",
+          totalAmount: 64000,
+          totalCost: 33000,
+          timestamp: Date.now() - 2 * 3600000,
+          items: [
+            { productId: 5, productName: "Uji Ceremonial Grade Matcha", quantity: 1, price: 42000 },
+            { productId: 9, productName: "Roasted Himalayan Salt Macadamias", quantity: 1, price: 22000 }
+          ]
+        },
+        {
+          id: 2,
+          orderNumber: "ORD-1002",
+          customerName: "ကိုကျော်စွာ (Ko Kyaw Swar)",
+          customerPhone: "+95 9 450 987654",
+          customerNote: "Cold brew pack for office meeting",
+          status: "PREPARING",
+          paymentStatus: "PAID",
+          paymentMethod: "CASH",
+          totalAmount: 38000,
+          totalCost: 20500,
+          timestamp: Date.now() - 1 * 3600000,
+          items: [
+            { productId: 1, productName: "Single-Origin Ethiopian Yirgacheffe", quantity: 1, price: 20000 },
+            { productId: 2, productName: "Dark Espresso Roast Beans", quantity: 1, price: 18000 }
+          ]
+        },
+        {
+          id: 3,
+          orderNumber: "ORD-1003",
+          customerName: "မဆုမြတ်နိုး (Ma Hsu Myat Noe)",
+          customerPhone: "+95 9 250 112233",
+          customerNote: "Deliver before 4 PM",
+          status: "PENDING",
+          paymentStatus: "UNPAID",
+          paymentMethod: "CASH",
+          totalAmount: 43000,
+          totalCost: 21500,
+          timestamp: Date.now() - 35 * 60000,
+          items: [
+            { productId: 6, productName: "Organic Shizuoka Sencha", quantity: 1, price: 17000 },
+            { productId: 12, productName: "Matcha White Chocolate Macadamias", quantity: 1, price: 26000 }
+          ]
+        }
+      ],
+
+      transactions: [
+        { id: 1, type: "INCOME", category: "ORDER_SALE", amount: 64000, title: "Order #ORD-1001 - Daw Aye Aye Thin", note: "Matcha Tin + Salted Macadamias", timestamp: Date.now() - 2 * 3600000, refOrder: "ORD-1001" },
+        { id: 2, type: "INCOME", category: "ORDER_SALE", amount: 38000, title: "Order #ORD-1002 - Ko Kyaw Swar", note: "Ethiopian Yirgacheffe + Dark Espresso", timestamp: Date.now() - 1 * 3600000, refOrder: "ORD-1002" },
+        { id: 3, type: "OUTCOME", category: "PACKAGING", amount: 85000, title: "Custom Kraft Pouches & Stickers", note: "Biodegradable coffee bags and eco seal labels", timestamp: Date.now() - 3 * 3600000 },
+        { id: 4, type: "INCOME", category: "WHOLESALE", amount: 450000, title: "Wholesale to Downtown Bistro", note: "15x Ethiopian Beans + 5x Sencha packs", timestamp: Date.now() - 1 * 86400000 },
+        { id: 5, type: "OUTCOME", category: "RESTOCKING", amount: 280000, title: "Batch Coffee Bean Sourcing", note: "Green coffee beans from import cooperative", timestamp: Date.now() - 1 * 86400000 - 7200000 },
+        { id: 6, type: "OUTCOME", category: "UTILITIES", amount: 110000, title: "Shop Water Filtration & Power", note: "Bi-weekly roaster energy allocation", timestamp: Date.now() - 2 * 86400000 },
+        { id: 7, type: "INCOME", category: "ORDER_SALE", amount: 125000, title: "Weekend Tea & Nut Gift Box", note: "Matcha, Macadamias, and Sencha bundle", timestamp: Date.now() - 2 * 86400000 - 14400000 }
+      ],
+
+      // --- Raw ingredients: buy (date/qty/cost) / use / remaining + auto-deduct recipes ---
+      rawMaterials: [
+        { id: 101, name: "Raw Macadamia Kernels", unit: "bags", stock: 14, minStock: 4, costPerUnit: 95000, sku: "RAW-NUT-25KG", note: "25kg bags from Shan supplier" },
+        { id: 102, name: "Green Coffee Beans (Arabica)", unit: "bags", stock: 22, minStock: 6, costPerUnit: 85000, sku: "RAW-COF-60KG", note: "60kg bags, Yirgacheffe + Espresso blend" },
+        { id: 103, name: "Ceremonial Matcha Powder", unit: "kg", stock: 3.5, minStock: 2, costPerUnit: 380000, sku: "RAW-MTC-1KG", note: "Uji first-harvest, 1kg tins" },
+        { id: 104, name: "Wildflower Honey", unit: "bottles", stock: 2, minStock: 3, costPerUnit: 18000, sku: "RAW-HNY-1L", note: "For honey-glazed macadamias — reorder soon" },
+        { id: 105, name: "Kraft Pouches + Labels", unit: "pcs", stock: 480, minStock: 100, costPerUnit: 450, sku: "RAW-PKG-500", note: "Biodegradable pouches + eco seals" }
+      ],
+
+      rawMovements: [
+        { id: 1001, materialId: 101, type: "PURCHASE", qty: 10, cost: 950000, note: "Bought 10 bags — Shan harvest lot", timestamp: Date.now() - 6 * 86400000 },
+        { id: 1002, materialId: 101, type: "PURCHASE", qty: 8, cost: 760000, note: "Bought 8 bags — top-up", timestamp: Date.now() - 2 * 86400000 },
+        { id: 1003, materialId: 101, type: "USAGE", qty: 4, cost: 0, note: "Roasting batch: salted + honey-glazed pouches", timestamp: Date.now() - 1 * 86400000 },
+        { id: 1004, materialId: 102, type: "PURCHASE", qty: 15, cost: 1275000, note: "Bought 15 bags — import cooperative", timestamp: Date.now() - 5 * 86400000 },
+        { id: 1005, materialId: 102, type: "USAGE", qty: 3, cost: 0, note: "Roast run: Ethiopian + Espresso", timestamp: Date.now() - 1 * 86400000 },
+        { id: 1006, materialId: 103, type: "PURCHASE", qty: 5, cost: 1900000, note: "Bought 5 kg — Uji ceremonial", timestamp: Date.now() - 4 * 86400000 },
+        { id: 1007, materialId: 103, type: "USAGE", qty: 1.5, cost: 0, note: "Tinning + latte concentrate batch", timestamp: Date.now() - 2 * 86400000 },
+        { id: 1008, materialId: 104, type: "PURCHASE", qty: 6, cost: 108000, note: "Bought 6 bottles", timestamp: Date.now() - 7 * 86400000 },
+        { id: 1009, materialId: 104, type: "USAGE", qty: 4, cost: 0, note: "Honey-glazed macadamia batch", timestamp: Date.now() - 3 * 86400000 }
+      ],
+
+      // Recipe: selling 1 unit of productId auto-uses qty of materialId
+      recipes: [
+        { productId: 1, materialId: 102, qtyPerUnit: 1 },
+        { productId: 2, materialId: 102, qtyPerUnit: 1 },
+        { productId: 5, materialId: 103, qtyPerUnit: 0.05 },
+        { productId: 9, materialId: 101, qtyPerUnit: 0.2 },
+        { productId: 10, materialId: 101, qtyPerUnit: 0.4 },
+        { productId: 11, materialId: 101, qtyPerUnit: 0.2 },
+        { productId: 11, materialId: 104, qtyPerUnit: 0.1 },
+        { productId: 12, materialId: 101, qtyPerUnit: 0.2 },
+        { productId: 12, materialId: 103, qtyPerUnit: 0.02 }
+      ]
+    };
+
+    // Helper currency formatter for Myanmar Kyat (MMK)
+    function formatMMK(amount) {
+      return new Intl.NumberFormat('en-US').format(Math.round(amount)) + ' MMK';
+    }
+
+    // Raw qty formatter: whole numbers without decimals, else up to 2 decimals
+    function formatRawQty(qty, unit) {
+      const n = Number(qty) || 0;
+      const q = Number.isInteger(n) ? n.toString() : (Math.round(n * 100) / 100).toString();
+      return q + ' ' + unit;
+    }
+
+    function rawBought(materialId) {
+      return STATE.rawMovements
+        .filter(m => m.materialId === materialId && m.type === 'PURCHASE')
+        .reduce((s, m) => s + Number(m.qty || 0), 0);
+    }
+
+    function rawUsed(materialId) {
+      return STATE.rawMovements
+        .filter(m => m.materialId === materialId && m.type === 'USAGE')
+        .reduce((s, m) => s + Number(m.qty || 0), 0);
+    }
+
+    function formatTimeAgo(timestamp) {
+      const diff = Math.floor((Date.now() - timestamp) / 1000);
+      if (diff < 60) return "Just now";
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('appToast');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2800);
+    }
+
+    // --- Tab Navigation ---
+    function switchTab(tab) {
+      STATE.currentTab = tab;
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      const activeNav = document.getElementById('nav-' + tab);
+      if (activeNav) activeNav.classList.add('active');
+
+      const titles = {
+        dashboard: { title: "BLANC COFFEE", sub: "Shop Manager • Myanmar" },
+        orders: { title: "Customer Orders", sub: "Real-time orders & slips" },
+        inventory: { title: "Product Inventory", sub: "Stock levels & catalog" },
+        finance: { title: "Finance Ledger", sub: "Income & expense records" }
+      };
+
+      document.getElementById('screenTitle').innerText = titles[tab].title;
+      document.getElementById('screenSubtitle').innerText = titles[tab].sub;
+
+      // Update FAB icon/visibility
+      const fab = document.getElementById('mainFab');
+      if (tab === 'dashboard') {
+        fab.style.display = 'none';
+      } else {
+        fab.style.display = 'flex';
+        fab.innerText = tab === 'orders' ? '+' : tab === 'inventory' ? '+' : '+';
+      }
+
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    function updateBadges() {
+      const pendingOrders = STATE.orders.filter(o => o.status === 'PENDING' || o.status === 'PREPARING').length;
+      const orderBadge = document.getElementById('pendingCountBadge');
+      if (orderBadge) {
+        orderBadge.innerText = pendingOrders;
+        orderBadge.style.display = pendingOrders > 0 ? 'flex' : 'none';
+      }
+
+      const lowStockCount = STATE.products.filter(p => p.stock <= p.minStock).length +
+        STATE.rawMaterials.filter(m => m.stock <= m.minStock).length;
+      const invBadge = document.getElementById('lowStockBadge');
+      if (invBadge) {
+        invBadge.innerText = lowStockCount;
+        invBadge.style.display = lowStockCount > 0 ? 'flex' : 'none';
+      }
+    }
+
+    // --- Render Screens ---
+    function renderCurrentScreen() {
+      const container = document.getElementById('screenContent');
+      if (STATE.currentTab === 'dashboard') {
+        renderDashboard(container);
+      } else if (STATE.currentTab === 'orders') {
+        renderOrders(container);
+      } else if (STATE.currentTab === 'inventory') {
+        renderInventory(container);
+      } else if (STATE.currentTab === 'finance') {
+        renderFinance(container);
+      }
+    }
+
+    // 1. DASHBOARD SCREEN
+    function renderDashboard(container) {
+      // Calculate metrics based on period filter
+      const now = Date.now();
+      let filterTime = 0;
+      if (STATE.dashboardPeriod === 'today') filterTime = now - 24 * 3600000;
+      else if (STATE.dashboardPeriod === '7d') filterTime = now - 7 * 86400000;
+      else if (STATE.dashboardPeriod === '30d') filterTime = now - 30 * 86400000;
+
+      const filteredTx = STATE.transactions.filter(t => t.timestamp >= filterTime);
+      const income = filteredTx.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
+      const outcome = filteredTx.filter(t => t.type === 'OUTCOME').reduce((s, t) => s + t.amount, 0);
+      const netProfit = income - outcome;
+      const margin = income > 0 ? ((netProfit / income) * 100).toFixed(1) : 0;
+
+      const lowStockItems = STATE.products.filter(p => p.stock <= p.minStock);
+
+      // Category breakdown
+      const coffeeRevenue = STATE.orders
+        .filter(o => o.status !== 'CANCELLED')
+        .flatMap(o => o.items)
+        .filter(i => {
+          const prod = STATE.products.find(p => p.id === i.productId);
+          return prod && prod.category === 'COFFEE';
+        })
+        .reduce((sum, i) => sum + (i.price * i.quantity), 0) || 58000;
+
+      const matchaRevenue = STATE.orders
+        .filter(o => o.status !== 'CANCELLED')
+        .flatMap(o => o.items)
+        .filter(i => {
+          const prod = STATE.products.find(p => p.id === i.productId);
+          return prod && prod.category === 'GREEN_TEA';
+        })
+        .reduce((sum, i) => sum + (i.price * i.quantity), 0) || 59000;
+
+      const nutRevenue = STATE.orders
+        .filter(o => o.status !== 'CANCELLED')
+        .flatMap(o => o.items)
+        .filter(i => {
+          const prod = STATE.products.find(p => p.id === i.productId);
+          return prod && prod.category === 'MACADAMIA_NUT';
+        })
+        .reduce((sum, i) => sum + (i.price * i.quantity), 0) || 48000;
+
+      const totalCatRev = (coffeeRevenue + matchaRevenue + nutRevenue) || 1;
+      const coffeePct = Math.round((coffeeRevenue / totalCatRev) * 100);
+      const matchaPct = Math.round((matchaRevenue / totalCatRev) * 100);
+      const nutPct = 100 - coffeePct - matchaPct;
+
+      container.innerHTML = `
+        <!-- Period Filters -->
+        <div class="chips-row">
+          <button class="chip ${STATE.dashboardPeriod === 'today' ? 'active' : ''}" onclick="setDashboardPeriod('today')">Today</button>
+          <button class="chip ${STATE.dashboardPeriod === '7d' ? 'active' : ''}" onclick="setDashboardPeriod('7d')">7 Days</button>
+          <button class="chip ${STATE.dashboardPeriod === '30d' ? 'active' : ''}" onclick="setDashboardPeriod('30d')">30 Days</button>
+          <button class="chip ${STATE.dashboardPeriod === 'all' ? 'active' : ''}" onclick="setDashboardPeriod('all')">All Time</button>
+        </div>
+
+        <!-- Net Profit Hero Card -->
+        <div class="hero-card">
+          <div class="hero-header">
+            <span class="hero-label">Net Profit (${STATE.dashboardPeriod.toUpperCase()})</span>
+            <span class="hero-period-pill">${margin}% Margin</span>
+          </div>
+          <div class="hero-amount">${formatMMK(netProfit)}</div>
+          <div class="hero-metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label">Income</span>
+              <span class="metric-val green">+${formatMMK(income)}</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Outcome</span>
+              <span class="metric-val red">-${formatMMK(outcome)}</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Margin</span>
+              <span class="metric-val gold">${margin}%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Low Stock Banner -->
+        ${lowStockItems.length > 0 ? `
+          <div class="alert-banner" onclick="filterLowStockInventory()">
+            <div class="alert-content">
+              <span class="alert-icon">⚠️</span>
+              <div class="alert-text">
+                <h4>${lowStockItems.length} Products Low in Stock</h4>
+                <p>${lowStockItems.map(i => i.name.split(' ')[0]).join(', ')} need replenishment</p>
+              </div>
+            </div>
+            <button class="alert-btn">Restock</button>
+          </div>
+        ` : ''}
+
+        <!-- Category Sales Breakdown -->
+        <div class="card cat-card">
+          <div class="section-head">
+            <h3>Category Performance</h3>
+            <span style="font-size:0.75rem; color:var(--shop-text-secondary);">Sales Share</span>
+          </div>
+
+          <div class="cat-item">
+            <div class="cat-row-top">
+              <span class="cat-name-badge"><span class="cat-dot coffee"></span> Coffee Beans & Brews</span>
+              <span>${formatMMK(coffeeRevenue)} (${coffeePct}%)</span>
+            </div>
+            <div class="cat-progress-track">
+              <div class="cat-progress-fill coffee" style="width: ${coffeePct}%"></div>
+            </div>
+          </div>
+
+          <div class="cat-item">
+            <div class="cat-row-top">
+              <span class="cat-name-badge"><span class="cat-dot matcha"></span> Japanese Green Tea / Matcha</span>
+              <span>${formatMMK(matchaRevenue)} (${matchaPct}%)</span>
+            </div>
+            <div class="cat-progress-track">
+              <div class="cat-progress-fill matcha" style="width: ${matchaPct}%"></div>
+            </div>
+          </div>
+
+          <div class="cat-item">
+            <div class="cat-row-top">
+              <span class="cat-name-badge"><span class="cat-dot macadamia"></span> Premium Macadamia Nuts</span>
+              <span>${formatMMK(nutRevenue)} (${nutPct}%)</span>
+            </div>
+            <div class="cat-progress-track">
+              <div class="cat-progress-fill macadamia" style="width: ${nutPct}%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity Feed -->
+        <div class="section-head">
+          <h3>Recent Activity</h3>
+          <button onclick="switchTab('orders')">View Orders →</button>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${STATE.orders.slice(0, 3).map(order => `
+            <div class="item-card" onclick="openOrderReceipt(${order.id})">
+              <div class="item-header">
+                <div>
+                  <div class="item-title">${order.orderNumber} • ${order.customerName}</div>
+                  <div class="item-sub">${order.items.length} items • ${formatTimeAgo(order.timestamp)}</div>
+                </div>
+                <span class="item-badge badge-${order.status.toLowerCase()}">${order.status}</span>
+              </div>
+              <div class="item-footer">
+                <span class="total-price">${formatMMK(order.totalAmount)}</span>
+                <span class="item-badge badge-${order.paymentStatus.toLowerCase()}">${order.paymentStatus} via ${order.paymentMethod}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function setDashboardPeriod(period) {
+      STATE.dashboardPeriod = period;
+      renderCurrentScreen();
+    }
+
+    function filterLowStockInventory() {
+      STATE.inventoryCategoryFilter = 'LOW_STOCK';
+      switchTab('inventory');
+    }
+
+    // 2. ORDERS SCREEN
+    function renderOrders(container) {
+      const filteredOrders = STATE.orders.filter(order => {
+        const matchesStatus = STATE.orderStatusFilter === 'ALL' || order.status === STATE.orderStatusFilter;
+        const matchesSearch = !STATE.customerSearchQuery || 
+          order.customerName.toLowerCase().includes(STATE.customerSearchQuery.toLowerCase()) ||
+          order.orderNumber.toLowerCase().includes(STATE.customerSearchQuery.toLowerCase()) ||
+          order.customerPhone.includes(STATE.customerSearchQuery);
+        return matchesStatus && matchesSearch;
+      });
+
+      const pendingCount = STATE.orders.filter(o => o.status === 'PENDING').length;
+      const prepCount = STATE.orders.filter(o => o.status === 'PREPARING').length;
+      const compCount = STATE.orders.filter(o => o.status === 'COMPLETED').length;
+
+      container.innerHTML = `
+        <!-- Search bar -->
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="input-field" placeholder="Search customer, phone, or #ORD..." 
+            value="${STATE.customerSearchQuery}" oninput="onOrderSearch(this.value)">
+        </div>
+
+        <!-- Status Filter Chips -->
+        <div class="chips-row">
+          <button class="chip ${STATE.orderStatusFilter === 'ALL' ? 'active' : ''}" onclick="setOrderStatusFilter('ALL')">All (${STATE.orders.length})</button>
+          <button class="chip ${STATE.orderStatusFilter === 'PENDING' ? 'active' : ''}" onclick="setOrderStatusFilter('PENDING')">Pending (${pendingCount})</button>
+          <button class="chip ${STATE.orderStatusFilter === 'PREPARING' ? 'active' : ''}" onclick="setOrderStatusFilter('PREPARING')">Preparing (${prepCount})</button>
+          <button class="chip ${STATE.orderStatusFilter === 'COMPLETED' ? 'active' : ''}" onclick="setOrderStatusFilter('COMPLETED')">Completed (${compCount})</button>
+        </div>
+
+        <!-- Orders List -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          ${filteredOrders.length === 0 ? `
+            <div style="text-align:center; padding:40px 20px; color:var(--shop-text-secondary);">
+              <span style="font-size:2.5rem;">🧾</span>
+              <p style="margin-top:10px; font-weight:600;">No orders found</p>
+              <p style="font-size:0.75rem;">Tap "+" button to create a new order</p>
+            </div>
+          ` : filteredOrders.map(order => `
+            <div class="item-card">
+              <div class="item-header">
+                <div>
+                  <div class="item-title">${order.orderNumber} • ${order.customerName}</div>
+                  <div class="item-sub">📞 ${order.customerPhone} • ${formatTimeAgo(order.timestamp)}</div>
+                  ${order.customerNote ? `<div style="font-size:0.72rem; color:var(--coffee-primary-light); margin-top:2px;">💬 "${order.customerNote}"</div>` : ''}
+                </div>
+                <span class="item-badge badge-${order.status.toLowerCase()}">${order.status}</span>
+              </div>
+
+              <!-- Order items -->
+              <div class="order-items-preview">
+                ${order.items.map(item => `
+                  <div class="order-item-line">
+                    <span>${item.quantity}x ${item.productName}</span>
+                    <span>${formatMMK(item.price * item.quantity)}</span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <!-- Footer with actions -->
+              <div class="item-footer">
+                <div>
+                  <span class="total-price">${formatMMK(order.totalAmount)}</span>
+                  <span class="item-badge badge-${order.paymentStatus.toLowerCase()}" style="margin-left:6px;">${order.paymentStatus}</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn-action-sm" onclick="openOrderReceipt(${order.id})">Slip</button>
+                  ${order.status === 'PENDING' ? `
+                    <button class="btn-primary-sm" onclick="advanceOrderStatus(${order.id}, 'PREPARING')">Prepare</button>
+                  ` : order.status === 'PREPARING' ? `
+                    <button class="btn-primary-sm" onclick="advanceOrderStatus(${order.id}, 'COMPLETED')">Complete</button>
+                  ` : ''}
+                  ${order.status !== 'CANCELLED' && order.status !== 'COMPLETED' ? `
+                    <button class="btn-action-sm" style="color:var(--outcome-red);" onclick="cancelOrder(${order.id})">Cancel</button>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function onOrderSearch(val) {
+      STATE.customerSearchQuery = val;
+      renderOrders(document.getElementById('screenContent'));
+    }
+
+    function setOrderStatusFilter(status) {
+      STATE.orderStatusFilter = status;
+      renderCurrentScreen();
+    }
+
+    function advanceOrderStatus(orderId, nextStatus) {
+      const order = STATE.orders.find(o => o.id === orderId);
+      if (!order) return;
+      order.status = nextStatus;
+
+      // Idempotent Income recording when completed if unpaid
+      if (nextStatus === 'COMPLETED' && order.paymentStatus === 'UNPAID') {
+        order.paymentStatus = 'PAID';
+        STATE.transactions.unshift({
+          id: Date.now(),
+          type: 'INCOME',
+          category: 'ORDER_SALE',
+          amount: order.totalAmount,
+          title: `Order #${order.orderNumber} - ${order.customerName}`,
+          note: `Payment collected upon order completion`,
+          timestamp: Date.now(),
+          refOrder: order.orderNumber
+        });
+      }
+
+      showToast(`Order ${order.orderNumber} marked as ${nextStatus}!`);
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    function cancelOrder(orderId) {
+      const order = STATE.orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      if (!confirm(`Cancel order ${order.orderNumber}? This will restore inventory and issue a refund if paid.`)) return;
+
+      order.status = 'CANCELLED';
+
+      // Restore stock
+      order.items.forEach(item => {
+        const prod = STATE.products.find(p => p.id === item.productId);
+        if (prod) prod.stock += item.quantity;
+      });
+
+      // Compensating refund transaction if it was paid
+      if (order.paymentStatus === 'PAID') {
+        STATE.transactions.unshift({
+          id: Date.now(),
+          type: 'OUTCOME',
+          category: 'ORDER_REFUND',
+          amount: order.totalAmount,
+          title: `Refund: Order #${order.orderNumber}`,
+          note: `Compensating refund for cancelled order`,
+          timestamp: Date.now(),
+          refOrder: order.orderNumber
+        });
+      }
+
+      showToast(`Order ${order.orderNumber} cancelled. Stock restored.`);
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    // 3. INVENTORY SCREEN (Products | Raw Materials tabs)
+    function renderInventory(container) {
+      if (STATE.inventoryTab === 'raw') {
+        renderRawMaterials(container);
+        return;
+      }
+      const filteredProducts = STATE.products.filter(p => {
+        const matchesCategory = STATE.inventoryCategoryFilter === 'ALL' 
+          ? true 
+          : STATE.inventoryCategoryFilter === 'LOW_STOCK'
+            ? p.stock <= p.minStock
+            : p.category === STATE.inventoryCategoryFilter;
+        const matchesSearch = !STATE.inventorySearchQuery ||
+          p.name.toLowerCase().includes(STATE.inventorySearchQuery.toLowerCase()) ||
+          p.sku.toLowerCase().includes(STATE.inventorySearchQuery.toLowerCase());
+        return matchesCategory && matchesSearch;
+      });
+
+      // Sort
+      if (STATE.inventorySort === 'stock') {
+        filteredProducts.sort((a, b) => a.stock - b.stock);
+      } else if (STATE.inventorySort === 'margin') {
+        filteredProducts.sort((a, b) => ((b.price - b.cost) / b.price) - ((a.price - a.cost) / a.price));
+      } else {
+        filteredProducts.sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      const lowStockCount = STATE.products.filter(p => p.stock <= p.minStock).length;
+
+      container.innerHTML = `
+        <!-- Products | Raw Materials tabs -->
+        <div class="chips-row" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <button class="chip active" style="text-align:center;">📦 Products (${STATE.products.length})</button>
+          <button class="chip" style="text-align:center;" onclick="setInventoryTab('raw')">🌾 Raw Materials (${STATE.rawMaterials.length})</button>
+        </div>
+
+        <!-- Search bar -->
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="input-field" placeholder="Search product name or SKU..." 
+            value="${STATE.inventorySearchQuery}" oninput="onInventorySearch(this.value)">
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="chips-row">
+          <button class="chip ${STATE.inventoryCategoryFilter === 'ALL' ? 'active' : ''}" onclick="setInventoryCategory('ALL')">All (${STATE.products.length})</button>
+          <button class="chip ${STATE.inventoryCategoryFilter === 'COFFEE' ? 'active' : ''}" onclick="setInventoryCategory('COFFEE')">Coffee</button>
+          <button class="chip ${STATE.inventoryCategoryFilter === 'GREEN_TEA' ? 'active' : ''}" onclick="setInventoryCategory('GREEN_TEA')">Green Tea</button>
+          <button class="chip ${STATE.inventoryCategoryFilter === 'MACADAMIA_NUT' ? 'active' : ''}" onclick="setInventoryCategory('MACADAMIA_NUT')">Macadamia</button>
+          <button class="chip ${STATE.inventoryCategoryFilter === 'LOW_STOCK' ? 'active' : ''}" style="${lowStockCount > 0 ? 'border-color:var(--warning-orange);' : ''}" onclick="setInventoryCategory('LOW_STOCK')">⚠️ Low Stock (${lowStockCount})</button>
+        </div>
+
+        <!-- Products Grid -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${filteredProducts.length === 0 ? `
+            <div style="text-align:center; padding:40px 20px; color:var(--shop-text-secondary);">
+              <span style="font-size:2.5rem;">📦</span>
+              <p style="margin-top:10px; font-weight:600;">No products match this filter</p>
+            </div>
+          ` : filteredProducts.map(p => {
+            const margin = Math.round(((p.price - p.cost) / p.price) * 100);
+            const isLow = p.stock <= p.minStock;
+            const isOut = p.stock === 0;
+            const stockClass = isOut ? 'stock-out' : isLow ? 'stock-low' : 'stock-healthy';
+            const stockText = isOut ? 'Out of Stock (0)' : isLow ? `Low Stock (${p.stock} ${p.unit})` : `${p.stock} ${p.unit}`;
+
+            return `
+              <div class="item-card prod-card">
+                <div class="prod-top">
+                  <div>
+                    <span class="prod-sku">${p.sku}</span>
+                    <h4 style="font-size:0.92rem; margin-top:3px; font-weight:700;">${p.name}</h4>
+                    <p style="font-size:0.72rem; color:var(--shop-text-secondary); margin-top:2px;">${p.desc}</p>
+                  </div>
+                  <span class="stock-badge ${stockClass}">${stockText}</span>
+                </div>
+
+                <div class="price-row">
+                  <div>
+                    <div class="selling-price">${formatMMK(p.price)}</div>
+                    <div class="cost-price">Cost: ${formatMMK(p.cost)} • Min: ${p.minStock} ${p.unit}</div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="margin-pill">${margin}% margin</span>
+                    <button class="btn-primary-sm" onclick="openRestockModal(${p.id})">Restock</button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function onInventorySearch(val) {
+      STATE.inventorySearchQuery = val;
+      renderInventory(document.getElementById('screenContent'));
+    }
+
+    function setInventoryCategory(cat) {
+      STATE.inventoryCategoryFilter = cat;
+      renderCurrentScreen();
+    }
+
+    function setInventoryTab(tab) {
+      STATE.inventoryTab = tab;
+      renderCurrentScreen();
+      const fab = document.getElementById('mainFab');
+      if (fab) {
+        fab.style.display = 'flex';
+        fab.innerText = '+';
+      }
+    }
+
+    // 3b. RAW MATERIALS TAB — buy (date/qty/cost) / used / remaining + history + recipes
+    function renderRawMaterials(container) {
+      const raws = [...STATE.rawMaterials].sort((a, b) => a.name.localeCompare(b.name));
+      const lowRaw = STATE.rawMaterials.filter(m => m.stock <= m.minStock).length;
+
+      container.innerHTML = `
+        <!-- Products | Raw Materials tabs -->
+        <div class="chips-row" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <button class="chip" style="text-align:center;" onclick="setInventoryTab('products')">📦 Products (${STATE.products.length})</button>
+          <button class="chip active" style="text-align:center;">🌾 Raw Materials (${STATE.rawMaterials.length})</button>
+        </div>
+
+        ${lowRaw > 0 ? `
+          <div class="alert-banner" style="cursor:default;">
+            <div class="alert-content">
+              <span class="alert-icon">⚠️</span>
+              <div class="alert-text">
+                <h4>${lowRaw} raw ingredient${lowRaw === 1 ? '' : 's'} low / out of stock</h4>
+                <p>Tap Buy on a card to record the next purchase</p>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${raws.length === 0 ? `
+            <div style="text-align:center; padding:40px 20px; color:var(--shop-text-secondary);">
+              <span style="font-size:2.5rem;">🌾</span>
+              <p style="margin-top:10px; font-weight:600;">No raw ingredients yet</p>
+              <p style="font-size:0.75rem;">Tap "+" to track e.g. macadamia bags — buying date, qty, used & remaining</p>
+            </div>
+          ` : raws.map(m => {
+            const bought = rawBought(m.id);
+            const used = rawUsed(m.id);
+            const isOut = m.stock <= 0;
+            const isLow = !isOut && m.stock <= m.minStock;
+            const stockClass = isOut ? 'stock-out' : isLow ? 'stock-low' : 'stock-healthy';
+            const stockText = isOut ? 'Out of stock' : isLow ? `Low: ${formatRawQty(m.stock, m.unit)}` : formatRawQty(m.stock, m.unit);
+            const links = STATE.recipes.filter(r => r.materialId === m.id);
+            return `
+              <div class="item-card prod-card">
+                <div class="prod-top">
+                  <div>
+                    <span class="prod-sku">${m.sku || 'RAW'}</span>
+                    <h4 style="font-size:0.92rem; margin-top:3px; font-weight:700;">${m.name}</h4>
+                    ${m.note ? `<p style="font-size:0.72rem; color:var(--shop-text-secondary); margin-top:2px;">${m.note}</p>` : ''}
+                  </div>
+                  <span class="stock-badge ${stockClass}">${stockText}</span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; background:var(--shop-surface-variant); border-radius:8px; padding:8px 10px; margin-top:8px;">
+                  <div>
+                    <div style="font-size:0.68rem; color:var(--income-green); font-weight:700;">BOUGHT</div>
+                    <div style="font-weight:800; font-size:0.88rem;">${formatRawQty(bought, m.unit)}</div>
+                  </div>
+                  <div>
+                    <div style="font-size:0.68rem; color:var(--outcome-red); font-weight:700;">USED</div>
+                    <div style="font-weight:800; font-size:0.88rem;">${formatRawQty(used, m.unit)}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:0.68rem; color:var(--shop-text-secondary); font-weight:700;">REMAINING</div>
+                    <div style="font-weight:800; font-size:0.95rem; color:var(--coffee-primary-light);">${formatRawQty(m.stock, m.unit)}</div>
+                  </div>
+                </div>
+
+                <div style="font-size:0.72rem; color:var(--shop-text-secondary); margin-top:6px;">
+                  ${links.length > 0 ? `🔗 Auto-deducts from ${links.length} product${links.length === 1 ? '' : 's'} on each sale` : `Manual tracking only — link for auto-deduct`}
+                </div>
+
+                <div class="price-row">
+                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <button class="btn-primary-sm" onclick="openBuyRawModal(${m.id})">Buy</button>
+                    <button class="btn-action-sm" onclick="openUseRawModal(${m.id})">Use</button>
+                    <button class="btn-action-sm" onclick="openRawHistoryModal(${m.id})">History</button>
+                    <button class="btn-action-sm" onclick="openRecipeModal(${m.id})">🔗 Recipe</button>
+                  </div>
+                  <button class="btn-action-sm" style="color:var(--outcome-red);" onclick="deleteRawMaterial(${m.id})">Delete</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function openAddRawModal() {
+      const html = `
+        <div class="modal-header">
+          <h3>Add Raw Ingredient</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="form-group">
+          <label>Name (e.g. Raw Macadamia Kernels)</label>
+          <input type="text" class="input-field" id="newRawName" placeholder="Raw Macadamia Kernels">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group">
+            <label>Unit (bags, kg, pcs)</label>
+            <input type="text" class="input-field" id="newRawUnit" value="bags">
+          </div>
+          <div class="form-group">
+            <label>SKU (optional)</label>
+            <input type="text" class="input-field" id="newRawSku" placeholder="RAW-NUT-25KG">
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group">
+            <label>Opening stock</label>
+            <input type="number" class="input-field" id="newRawStock" value="0" step="any" min="0">
+          </div>
+          <div class="form-group">
+            <label>Low-stock alert at</label>
+            <input type="number" class="input-field" id="newRawMin" value="5" step="any" min="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Supplier / note (optional)</label>
+          <input type="text" class="input-field" id="newRawNote" placeholder="25kg bags from Shan supplier">
+        </div>
+        <button class="btn-submit" onclick="submitNewRaw()">Add Raw Ingredient</button>
+      `;
+      openModal(html);
+    }
+
+    function submitNewRaw() {
+      const name = document.getElementById('newRawName').value.trim();
+      if (!name) { alert("Please enter a name."); return; }
+      const unit = document.getElementById('newRawUnit').value.trim() || 'units';
+      const stock = parseFloat(document.getElementById('newRawStock').value) || 0;
+      const minStock = parseFloat(document.getElementById('newRawMin').value) || 0;
+      const sku = document.getElementById('newRawSku').value.trim() || ('RAW-' + Date.now().toString().slice(-4));
+      const note = document.getElementById('newRawNote').value.trim();
+      STATE.rawMaterials.push({ id: Date.now(), name, unit, stock, minStock, costPerUnit: 0, sku, note });
+      closeModal();
+      showToast(name + " added to raw stock!");
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    function deleteRawMaterial(materialId) {
+      const m = STATE.rawMaterials.find(x => x.id === materialId);
+      if (!m) return;
+      if (!confirm("Delete " + m.name + "? History + recipe links are removed too.")) return;
+      STATE.rawMaterials = STATE.rawMaterials.filter(x => x.id !== materialId);
+      STATE.rawMovements = STATE.rawMovements.filter(x => x.materialId !== materialId);
+      STATE.recipes = STATE.recipes.filter(x => x.materialId !== materialId);
+      showToast(m.name + " deleted.");
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    function openBuyRawModal(materialId) {
+      const m = STATE.rawMaterials.find(x => x.id === materialId);
+      if (!m) return;
+      const html = `
+        <div class="modal-header">
+          <h3>Buy: ${m.name}</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="background:var(--shop-surface-variant); padding:12px; border-radius:12px; font-size:0.82rem;">
+          <div><strong>Remaining now:</strong> ${formatRawQty(m.stock, m.unit)}</div>
+          <div><strong>Bought so far:</strong> ${formatRawQty(rawBought(m.id), m.unit)} • <strong>Used:</strong> ${formatRawQty(rawUsed(m.id), m.unit)}</div>
+        </div>
+        <div class="form-group">
+          <label>Quantity bought (${m.unit}) — date = today</label>
+          <input type="number" class="input-field" id="buyRawQty" value="10" step="any" min="0">
+        </div>
+        <div class="form-group">
+          <label>Total cost in MMK (→ expense)</label>
+          <input type="number" class="input-field" id="buyRawCost" value="${m.costPerUnit ? (10 * m.costPerUnit) : ''}" placeholder="e.g. 950000">
+        </div>
+        <div class="form-group">
+          <label>Supplier / batch note</label>
+          <input type="text" class="input-field" id="buyRawNote" placeholder="Shan harvest lot, invoice #">
+        </div>
+        <button class="btn-submit" onclick="submitBuyRaw(${m.id})">Confirm Buy</button>
+      `;
+      openModal(html);
+    }
+
+    function submitBuyRaw(materialId) {
+      const m = STATE.rawMaterials.find(x => x.id === materialId);
+      if (!m) return;
+      const qty = parseFloat(document.getElementById('buyRawQty').value) || 0;
+      const cost = parseFloat(document.getElementById('buyRawCost').value) || 0;
+      const note = document.getElementById('buyRawNote').value.trim() || ("Bought " + qty + " " + m.unit);
+      if (qty <= 0) { alert("Quantity must be greater than 0"); return; }
+      m.stock += qty;
+      STATE.rawMovements.unshift({ id: Date.now(), materialId, type: "PURCHASE", qty, cost, note, timestamp: Date.now() });
+      if (cost > 0) {
+        STATE.transactions.unshift({ id: Date.now() + 1, type: "OUTCOME", category: "RESTOCKING", amount: cost, title: "Raw buy: " + m.name + " (+" + qty + " " + m.unit + ")", note, timestamp: Date.now() });
+      }
+      closeModal();
+      showToast("Added " + formatRawQty(qty, m.unit) + " — expense logged.");
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    function openUseRawModal(materialId) {
+      const m = STATE.rawMaterials.find(x => x.id === materialId);
+      if (!m) return;
+      const html = `
+        <div class="modal-header">
+          <h3>Use: ${m.name}</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="background:var(--shop-surface-variant); padding:12px; border-radius:12px; font-size:0.82rem;">
+          <div><strong>Remaining now:</strong> ${formatRawQty(m.stock, m.unit)}</div>
+        </div>
+        <div class="form-group">
+          <label>Quantity used (${m.unit})</label>
+          <input type="number" class="input-field" id="useRawQty" value="1" step="any" min="0">
+        </div>
+        <div class="form-group">
+          <label>Reason (roast batch, spillage…)</label>
+          <input type="text" class="input-field" id="useRawNote" value="Production batch">
+        </div>
+        <button class="btn-submit" onclick="submitUseRaw(${m.id})">Confirm Use</button>
+      `;
+      openModal(html);
+    }
+
+    function submitUseRaw(materialId) {
+      const m = STATE.rawMaterials.find(x => x.id === materialId);
+      if (!m) return;
+      const qty = parseFloat(document.getElementById('useRawQty').value) || 0;
+      const note = document.getElementById('useRawNote').value.trim() || "Manual use";
+      if (qty <= 0) { alert("Quantity must be greater than 0"); return; }
+      if (qty > m.stock) { alert("Not enough " + m.name + ": only " + formatRawQty(m.stock, m.unit) + " remaining."); return; }
+      m.stock -= qty;
+      STATE.rawMovements.unshift({ id: Date.now(), materialId, type: "USAGE", qty, cost: 0, note, timestamp: Date.now() });
+      closeModal();
+      showToast("Used " + formatRawQty(qty, m.unit) + " recorded.");
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    function openRawHistoryModal(materialId) {
+      const m = STATE.rawMaterials.find(x => x.id === materialId);
+      if (!m) return;
+      const moves = STATE.rawMovements.filter(x => x.materialId === materialId);
+      const html = `
+        <div class="modal-header">
+          <h3>${m.name} — history</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="background:var(--shop-surface-variant); padding:12px; border-radius:12px; font-size:0.82rem; display:flex; justify-content:space-between;">
+          <span>🟢 Bought: <strong>${formatRawQty(rawBought(m.id), m.unit)}</strong></span>
+          <span>🔴 Used: <strong>${formatRawQty(rawUsed(m.id), m.unit)}</strong></span>
+          <span>📦 Left: <strong>${formatRawQty(m.stock, m.unit)}</strong></span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; max-height:320px; overflow-y:auto;">
+          ${moves.length === 0 ? '<p style="font-size:0.8rem; color:var(--shop-text-secondary);">No entries yet. Tap Buy to record the first purchase.</p>' : moves.map(x => `
+            <div style="background:var(--shop-surface-variant); border-radius:8px; padding:8px 10px; font-size:0.78rem;">
+              <div style="display:flex; justify-content:space-between; font-weight:700;">
+                <span>${x.type === 'PURCHASE' ? '🟢 Bought' : x.type === 'USAGE' ? '🔴 Used' : '⚪ Adjusted'} ${formatRawQty(x.qty, m.unit)}</span>
+                ${x.cost ? `<span>${formatMMK(x.cost)}</span>` : ''}
+              </div>
+              <div style="color:var(--shop-text-secondary); font-size:0.72rem;">${new Date(x.timestamp).toLocaleString()}${x.note ? ' • ' + x.note : ''}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      openModal(html);
+    }
+
+    function openRecipeModal(materialId) {
+      const m = STATE.rawMaterials.find(x => x.id === materialId);
+      if (!m) return;
+      const html = `
+        <div class="modal-header">
+          <h3>Auto-deduct: ${m.name}</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p style="font-size:0.78rem; color:var(--shop-text-secondary);">How much ${m.unit} is used to make 1 unit of each product? Selling auto-deducts raw stock. Leave 0 to unlink.</p>
+        <div style="display:flex; flex-direction:column; gap:6px; max-height:320px; overflow-y:auto;">
+          ${STATE.products.map(p => {
+            const link = STATE.recipes.find(r => r.productId === p.id && r.materialId === materialId);
+            return `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:var(--shop-surface-variant); padding:8px 10px; border-radius:8px;">
+                <div style="font-size:0.8rem; font-weight:700;">${p.name}</div>
+                <input type="number" class="input-field" style="width:90px;" id="recipe_${p.id}" value="${link ? link.qtyPerUnit : ''}" placeholder="0" step="any" min="0">
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <button class="btn-submit" onclick="saveRecipe(${materialId})">Save Links</button>
+      `;
+      openModal(html);
+    }
+
+    function saveRecipe(materialId) {
+      STATE.products.forEach(p => {
+        const el = document.getElementById('recipe_' + p.id);
+        if (!el) return;
+        const qty = parseFloat(el.value) || 0;
+        const idx = STATE.recipes.findIndex(r => r.productId === p.id && r.materialId === materialId);
+        if (qty > 0) {
+          if (idx >= 0) STATE.recipes[idx].qtyPerUnit = qty;
+          else STATE.recipes.push({ productId: p.id, materialId, qtyPerUnit: qty });
+        } else if (idx >= 0) {
+          STATE.recipes.splice(idx, 1);
+        }
+      });
+      closeModal();
+      showToast("Recipe links saved — sales now auto-deduct raw stock.");
+      renderCurrentScreen();
+    }
+
+    // 4. FINANCE SCREEN
+    function renderFinance(container) {
+      const filteredTx = STATE.transactions.filter(t => {
+        const matchesType = STATE.financeFilter === 'ALL' || t.type === STATE.financeFilter;
+        const matchesSearch = !STATE.financeSearchQuery ||
+          t.title.toLowerCase().includes(STATE.financeSearchQuery.toLowerCase()) ||
+          t.category.toLowerCase().includes(STATE.financeSearchQuery.toLowerCase()) ||
+          (t.note && t.note.toLowerCase().includes(STATE.financeSearchQuery.toLowerCase()));
+        return matchesType && matchesSearch;
+      });
+
+      const totalIncome = STATE.transactions.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
+      const totalOutcome = STATE.transactions.filter(t => t.type === 'OUTCOME').reduce((s, t) => s + t.amount, 0);
+      const net = totalIncome - totalOutcome;
+
+      container.innerHTML = `
+        <!-- Overview summary cards -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="card" style="border-left:4px solid var(--income-green);">
+            <div style="font-size:0.72rem; color:var(--shop-text-secondary); text-transform:uppercase;">Total Inflow</div>
+            <div style="font-family:'Outfit'; font-size:1.15rem; font-weight:800; color:var(--income-green); margin-top:4px;">
+              +${formatMMK(totalIncome)}
+            </div>
+          </div>
+          <div class="card" style="border-left:4px solid var(--outcome-red);">
+            <div style="font-size:0.72rem; color:var(--shop-text-secondary); text-transform:uppercase;">Total Outflow</div>
+            <div style="font-family:'Outfit'; font-size:1.15rem; font-weight:800; color:var(--outcome-red); margin-top:4px;">
+              -${formatMMK(totalOutcome)}
+            </div>
+          </div>
+        </div>
+
+        <!-- Search bar -->
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="input-field" placeholder="Search ledger entries, notes..." 
+            value="${STATE.financeSearchQuery}" oninput="onFinanceSearch(this.value)">
+        </div>
+
+        <!-- Type filter chips -->
+        <div class="chips-row">
+          <button class="chip ${STATE.financeFilter === 'ALL' ? 'active' : ''}" onclick="setFinanceFilter('ALL')">All Entries (${STATE.transactions.length})</button>
+          <button class="chip ${STATE.financeFilter === 'INCOME' ? 'active' : ''}" onclick="setFinanceFilter('INCOME')">Inflow (+)</button>
+          <button class="chip ${STATE.financeFilter === 'OUTCOME' ? 'active' : ''}" onclick="setFinanceFilter('OUTCOME')">Outflow (-)</button>
+        </div>
+
+        <!-- Transactions Ledger List -->
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${filteredTx.map(t => {
+            const isInc = t.type === 'INCOME';
+            return `
+              <div class="item-card" style="padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                  <div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:0.7rem; font-weight:700; background:var(--shop-surface-variant); padding:2px 6px; border-radius:4px;">${t.category}</span>
+                      ${t.refOrder ? `<span style="font-size:0.7rem; color:var(--coffee-primary-light); font-weight:600;">🔗 ${t.refOrder}</span>` : ''}
+                    </div>
+                    <div style="font-weight:700; font-size:0.88rem; margin-top:3px;">${t.title}</div>
+                    ${t.note ? `<div style="font-size:0.72rem; color:var(--shop-text-secondary);">${t.note}</div>` : ''}
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-family:'Outfit'; font-size:1.05rem; font-weight:800; color:${isInc ? 'var(--income-green)' : 'var(--outcome-red)'};">
+                      ${isInc ? '+' : '-'}${formatMMK(t.amount)}
+                    </div>
+                    <div style="font-size:0.7rem; color:var(--shop-text-secondary); margin-top:2px;">${formatTimeAgo(t.timestamp)}</div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function onFinanceSearch(val) {
+      STATE.financeSearchQuery = val;
+      renderFinance(document.getElementById('screenContent'));
+    }
+
+    function setFinanceFilter(filter) {
+      STATE.financeFilter = filter;
+      renderCurrentScreen();
+    }
+
+    // --- FAB & Modal Actions ---
+    function onFabClick() {
+      if (STATE.currentTab === 'orders') {
+        openNewOrderModal();
+      } else if (STATE.currentTab === 'inventory') {
+        if (STATE.inventoryTab === 'raw') openAddRawModal();
+        else openAddProductModal();
+      } else if (STATE.currentTab === 'finance') {
+        openAddTransactionModal();
+      }
+    }
+
+    function openModal(htmlContent) {
+      const sheet = document.getElementById('modalSheet');
+      sheet.innerHTML = htmlContent;
+      document.getElementById('modalBackdrop').classList.add('open');
+    }
+
+    function closeModal(e) {
+      document.getElementById('modalBackdrop').classList.remove('open');
+    }
+
+    // Modal 1: New Order
+    function openNewOrderModal() {
+      let orderDraft = {
+        name: '',
+        phone: '',
+        note: '',
+        paymentMethod: 'KBZPAY',
+        isPaid: true,
+        selectedProducts: {} // { prodId: quantity }
+      };
+
+      window._orderDraft = orderDraft;
+
+      const html = `
+        <div class="modal-header">
+          <h3>Create Customer Order</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <div class="form-group">
+          <label>Customer Name (Myanmar / English)</label>
+          <input type="text" class="input-field" placeholder="e.g. ဒေါ်နီလာ (Daw Nilar)" id="draftName" oninput="window._orderDraft.name = this.value">
+        </div>
+
+        <div class="form-group">
+          <label>Customer Phone Number</label>
+          <input type="text" class="input-field" placeholder="+95 9..." id="draftPhone" oninput="window._orderDraft.phone = this.value">
+        </div>
+
+        <div class="form-group">
+          <label>Order Note / Special Request</label>
+          <input type="text" class="input-field" placeholder="Packaging, sugar level, etc." id="draftNote" oninput="window._orderDraft.note = this.value">
+        </div>
+
+        <div class="form-group">
+          <label>Select Items (Live Stock Checked)</label>
+          <div style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; padding:4px 0;">
+            ${STATE.products.map(p => `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:var(--shop-surface-variant); padding:8px 10px; border-radius:8px;">
+                <div>
+                  <div style="font-size:0.82rem; font-weight:700;">${p.name}</div>
+                  <div style="font-size:0.72rem; color:var(--shop-text-secondary);">${formatMMK(p.price)} • Stock: ${p.stock} ${p.unit}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button class="btn-action-sm" style="padding:2px 8px;" onclick="adjustDraftItem(${p.id}, -1)">-</button>
+                  <span id="draftQty_${p.id}" style="font-weight:700; font-size:0.85rem; width:18px; text-align:center;">0</span>
+                  <button class="btn-action-sm" style="padding:2px 8px;" onclick="adjustDraftItem(${p.id}, 1)">+</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group">
+            <label>Payment Method</label>
+            <select class="input-field" onchange="window._orderDraft.paymentMethod = this.value">
+              <option value="KBZPAY">KBZPay</option>
+              <option value="CASH">Cash</option>
+              <option value="CARD">Credit/Debit Card</option>
+              <option value="CB_PAY">CB Pay</option>
+              <option value="AYA_PAY">AYA Pay</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Payment Status</label>
+            <select class="input-field" onchange="window._orderDraft.isPaid = (this.value === 'PAID')">
+              <option value="PAID">PAID</option>
+              <option value="UNPAID">UNPAID (Pay on Delivery)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="background:var(--coffee-primary-container); border-radius:12px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:0.72rem; color:var(--coffee-on-primary-container); font-weight:600;">Total Order Amount</div>
+            <div id="draftTotalAmount" style="font-family:'Outfit'; font-size:1.25rem; font-weight:800; color:var(--coffee-on-primary-container);">0 MMK</div>
+          </div>
+          <button class="btn-submit" onclick="submitDraftOrder()" style="margin:0; padding:10px 18px;">Place Order</button>
+        </div>
+      `;
+
+      openModal(html);
+    }
+
+    function adjustDraftItem(prodId, delta) {
+      const p = STATE.products.find(prod => prod.id === prodId);
+      if (!p) return;
+      const current = window._orderDraft.selectedProducts[prodId] || 0;
+      const target = current + delta;
+      if (target < 0) return;
+      if (target > p.stock) {
+        alert(`Cannot add more: Only ${p.stock} ${p.unit} currently in stock.`);
+        return;
+      }
+
+      if (target === 0) {
+        delete window._orderDraft.selectedProducts[prodId];
+      } else {
+        window._orderDraft.selectedProducts[prodId] = target;
+      }
+
+      const qtyEl = document.getElementById(`draftQty_${prodId}`);
+      if (qtyEl) qtyEl.innerText = target;
+
+      // Update total
+      let total = 0;
+      for (const [id, q] of Object.entries(window._orderDraft.selectedProducts)) {
+        const itemP = STATE.products.find(prod => prod.id === parseInt(id));
+        if (itemP) total += (itemP.price * q);
+      }
+      document.getElementById('draftTotalAmount').innerText = formatMMK(total);
+    }
+
+    function submitDraftOrder() {
+      const draft = window._orderDraft;
+      if (!draft.name.trim()) {
+        alert("Please enter customer name.");
+        return;
+      }
+      const itemKeys = Object.keys(draft.selectedProducts);
+      if (itemKeys.length === 0) {
+        alert("Please select at least one item.");
+        return;
+      }
+
+      // Generate ORD-#
+      const maxNum = STATE.orders.reduce((max, o) => {
+        const num = parseInt(o.orderNumber.replace('ORD-', '')) || 0;
+        return Math.max(max, num);
+      }, 1000);
+      const nextOrdNum = `ORD-${maxNum + 1}`;
+
+      const items = [];
+      let totalAmount = 0;
+      let totalCost = 0;
+
+      for (const [prodIdStr, qty] of Object.entries(draft.selectedProducts)) {
+        const prod = STATE.products.find(p => p.id === parseInt(prodIdStr));
+        if (prod) {
+          prod.stock -= qty; // Deduct inventory
+          totalAmount += (prod.price * qty);
+          totalCost += (prod.cost * qty);
+          items.push({
+            productId: prod.id,
+            productName: prod.name,
+            quantity: qty,
+            price: prod.price
+          });
+          // Auto-consume raw ingredients via recipes (never blocks the sale)
+          STATE.recipes
+            .filter(r => r.productId === prod.id)
+            .forEach(r => {
+              const raw = STATE.rawMaterials.find(m => m.id === r.materialId);
+              if (!raw) return;
+              const needed = r.qtyPerUnit * qty;
+              if (needed <= 0) return;
+              raw.stock = Math.max(0, raw.stock - needed);
+              STATE.rawMovements.unshift({
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                materialId: raw.id,
+                type: "USAGE",
+                qty: needed,
+                cost: 0,
+                note: "Auto-use for " + nextOrdNum + " (" + prod.name + " x" + qty + ")",
+                timestamp: Date.now()
+              });
+            });
+        }
+      }
+
+      const newOrder = {
+        id: Date.now(),
+        orderNumber: nextOrdNum,
+        customerName: draft.name,
+        customerPhone: draft.phone || "+95 9 12345678",
+        customerNote: draft.note || "",
+        status: "PENDING",
+        paymentStatus: draft.isPaid ? "PAID" : "UNPAID",
+        paymentMethod: draft.paymentMethod,
+        totalAmount,
+        totalCost,
+        timestamp: Date.now(),
+        items
+      };
+
+      STATE.orders.unshift(newOrder);
+
+      // Record income if paid
+      if (draft.isPaid) {
+        STATE.transactions.unshift({
+          id: Date.now() + 1,
+          type: "INCOME",
+          category: "ORDER_SALE",
+          amount: totalAmount,
+          title: `Order #${nextOrdNum} - ${draft.name}`,
+          note: items.map(i => `${i.quantity}x ${i.productName}`).join(', '),
+          timestamp: Date.now(),
+          refOrder: nextOrdNum
+        });
+      }
+
+      closeModal();
+      showToast(`Order ${nextOrdNum} placed successfully!`);
+      updateBadges();
+      renderCurrentScreen();
+      openOrderReceipt(newOrder.id);
+    }
+
+    // Modal 2: Order Receipt Slip
+    function openOrderReceipt(orderId) {
+      const order = STATE.orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      const dateStr = new Date(order.timestamp).toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
+
+      const slipText = `================================\n   BLANC COFFEE — ORDER SLIP\n       Yangon, Myanmar\n================================\nOrder #: ${order.orderNumber}\nDate: ${dateStr}\nCustomer: ${order.customerName}\nPhone: ${order.customerPhone}\n--------------------------------\n${order.items.map(i => `${i.quantity}x ${i.productName.substring(0, 22)}\n   @ ${formatMMK(i.price)} = ${formatMMK(i.price * i.quantity)}`).join('\n')}\n--------------------------------\nTOTAL: ${formatMMK(order.totalAmount)}\nPAYMENT: ${order.paymentStatus} (${order.paymentMethod})\nSTATUS: ${order.status}\n================================\nThank you for choosing BLANC COFFEE!\nကျေးဇူးတင်ပါသည်`;
+
+      const html = `
+        <div class="modal-header">
+          <h3>Order Slip & Receipt</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <div class="receipt-slip">
+          <div class="receipt-title">☕ BLANC COFFEE</div>
+          <div style="text-align:center; font-size:0.74rem;">Specialty Coffee, Tea & Nuts • Myanmar</div>
+          <div class="receipt-divider"></div>
+          <div><strong>Order:</strong> ${order.orderNumber}</div>
+          <div><strong>Date:</strong> ${dateStr}</div>
+          <div><strong>Customer:</strong> ${order.customerName}</div>
+          <div><strong>Phone:</strong> ${order.customerPhone}</div>
+          ${order.customerNote ? `<div><strong>Note:</strong> ${order.customerNote}</div>` : ''}
+          <div class="receipt-divider"></div>
+          ${order.items.map(item => `
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <span>${item.quantity}x ${item.productName}</span>
+              <span>${formatMMK(item.price * item.quantity)}</span>
+            </div>
+          `).join('')}
+          <div class="receipt-divider"></div>
+          <div style="display:flex; justify-content:space-between; font-size:1rem; font-weight:bold;">
+            <span>TOTAL DUE:</span>
+            <span>${formatMMK(order.totalAmount)}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-top:4px;">
+            <span>Payment: ${order.paymentStatus}</span>
+            <span>Method: ${order.paymentMethod}</span>
+          </div>
+          <div class="receipt-divider"></div>
+          <div style="text-align:center; font-size:0.75rem;">Thank you! ကျေးဇူးတင်ပါသည်</div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <button class="btn-action-sm" style="padding:12px;" onclick="copySlipText(\`${slipText.replace(/`/g, "\\`")}\`)">📋 Copy Text Slip</button>
+          <button class="btn-submit" style="margin:0; padding:12px;" onclick="shareSlip('${order.orderNumber}')">📲 Share (Viber/Telegram)</button>
+        </div>
+      `;
+
+      openModal(html);
+    }
+
+    function copySlipText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Order slip copied to clipboard!");
+      });
+    }
+
+    function shareSlip(orderNum) {
+      showToast(`Sharing Order ${orderNum} slip...`);
+    }
+
+    // Modal 3: Restock Inventory
+    function openRestockModal(prodId) {
+      const prod = STATE.products.find(p => p.id === prodId);
+      if (!prod) return;
+
+      const html = `
+        <div class="modal-header">
+          <h3>Restock ${prod.name}</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <div style="background:var(--shop-surface-variant); padding:12px; border-radius:12px; font-size:0.82rem;">
+          <div><strong>Current Stock:</strong> ${prod.stock} ${prod.unit}</div>
+          <div><strong>Threshold:</strong> ${prod.minStock} ${prod.unit}</div>
+          <div><strong>Default Cost Price:</strong> ${formatMMK(prod.cost)} / ${prod.unit}</div>
+        </div>
+
+        <div class="form-group">
+          <label>Quantity to Restock (${prod.unit})</label>
+          <input type="number" class="input-field" id="restockQty" value="10" min="1" oninput="updateRestockExpense(${prod.cost})">
+        </div>
+
+        <div class="form-group">
+          <label>Unit Cost in MMK</label>
+          <input type="number" class="input-field" id="restockCost" value="${prod.cost}" oninput="updateRestockExpense(null)">
+        </div>
+
+        <div class="form-group">
+          <label>Supplier / Batch Note</label>
+          <input type="text" class="input-field" id="restockNote" placeholder="Fresh harvest roast batch from supplier">
+        </div>
+
+        <div style="background:var(--outcome-bg); border-radius:12px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:0.72rem; color:var(--outcome-red); font-weight:600;">Total Restock Expense</div>
+            <div id="restockTotalExpense" style="font-family:'Outfit'; font-size:1.15rem; font-weight:800; color:var(--outcome-red);">${formatMMK(10 * prod.cost)}</div>
+          </div>
+          <button class="btn-submit" onclick="submitRestock(${prod.id})" style="margin:0; background:var(--outcome-red);">Confirm Restock</button>
+        </div>
+      `;
+
+      openModal(html);
+    }
+
+    function updateRestockExpense() {
+      const qty = parseInt(document.getElementById('restockQty').value) || 0;
+      const cost = parseFloat(document.getElementById('restockCost').value) || 0;
+      document.getElementById('restockTotalExpense').innerText = formatMMK(qty * cost);
+    }
+
+    function submitRestock(prodId) {
+      const prod = STATE.products.find(p => p.id === prodId);
+      if (!prod) return;
+
+      const qty = parseInt(document.getElementById('restockQty').value) || 0;
+      const cost = parseFloat(document.getElementById('restockCost').value) || 0;
+      const note = document.getElementById('restockNote').value || "Inventory restocking batch";
+
+      if (qty <= 0) {
+        alert("Quantity must be greater than 0");
+        return;
+      }
+
+      prod.stock += qty;
+      prod.cost = cost;
+
+      // Auto-log Restocking Expense in Finance
+      STATE.transactions.unshift({
+        id: Date.now(),
+        type: "OUTCOME",
+        category: "RESTOCKING",
+        amount: qty * cost,
+        title: `Restocked ${qty}x ${prod.name}`,
+        note: note,
+        timestamp: Date.now()
+      });
+
+      closeModal();
+      showToast(`Added ${qty} ${prod.unit} to stock! Expense recorded in Finance.`);
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    // Modal 4: Add New Transaction to Finance
+    function openAddTransactionModal() {
+      const html = `
+        <div class="modal-header">
+          <h3>Record Transaction</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <div class="form-group">
+          <label>Transaction Type</label>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <button class="chip active" id="txTypeInc" onclick="setDraftTxType('INCOME')" style="text-align:center;">Inflow (+ Income)</button>
+            <button class="chip" id="txTypeOut" onclick="setDraftTxType('OUTCOME')" style="text-align:center;">Outflow (- Expense)</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Category</label>
+          <select class="input-field" id="txCategory">
+            <option value="ORDER_SALE">Order Sale</option>
+            <option value="WHOLESALE">Wholesale Sale</option>
+            <option value="RESTOCKING">Restocking Expense</option>
+            <option value="PACKAGING">Packaging & Labels</option>
+            <option value="UTILITIES">Utilities & Power</option>
+            <option value="EQUIPMENT">Equipment & Maintenance</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Amount in MMK</label>
+          <input type="number" class="input-field" id="txAmount" placeholder="e.g. 50000">
+        </div>
+
+        <div class="form-group">
+          <label>Title / Description</label>
+          <input type="text" class="input-field" id="txTitle" placeholder="e.g. Grinder burr replacement">
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <input type="text" class="input-field" id="txNote" placeholder="Additional details...">
+        </div>
+
+        <button class="btn-submit" onclick="submitTransaction()">Save Entry</button>
+      `;
+
+      window._draftTxType = 'INCOME';
+      openModal(html);
+    }
+
+    function setDraftTxType(type) {
+      window._draftTxType = type;
+      document.getElementById('txTypeInc').classList.toggle('active', type === 'INCOME');
+      document.getElementById('txTypeOut').classList.toggle('active', type === 'OUTCOME');
+    }
+
+    function submitTransaction() {
+      const amount = parseFloat(document.getElementById('txAmount').value) || 0;
+      const title = document.getElementById('txTitle').value.trim();
+      const cat = document.getElementById('txCategory').value;
+      const note = document.getElementById('txNote').value.trim();
+
+      if (amount <= 0 || !title) {
+        alert("Please provide a valid amount and title.");
+        return;
+      }
+
+      STATE.transactions.unshift({
+        id: Date.now(),
+        type: window._draftTxType,
+        category: cat,
+        amount: amount,
+        title: title,
+        note: note,
+        timestamp: Date.now()
+      });
+
+      closeModal();
+      showToast("Transaction saved to ledger!");
+      renderCurrentScreen();
+    }
+
+    // Modal 5: Add Product
+    function openAddProductModal() {
+      const html = `
+        <div class="modal-header">
+          <h3>Add Product to Catalog</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <div class="form-group">
+          <label>Product Name</label>
+          <input type="text" class="input-field" id="newProdName" placeholder="e.g. Cascara Coffee Cherry Tea">
+        </div>
+
+        <div class="form-group">
+          <label>Category</label>
+          <select class="input-field" id="newProdCategory">
+            <option value="COFFEE">Coffee</option>
+            <option value="GREEN_TEA">Green Tea</option>
+            <option value="MACADAMIA_NUT">Macadamia Nut</option>
+          </select>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group">
+            <label>Cost Price (MMK)</label>
+            <input type="number" class="input-field" id="newProdCost" placeholder="8000">
+          </div>
+          <div class="form-group">
+            <label>Selling Price (MMK)</label>
+            <input type="number" class="input-field" id="newProdPrice" placeholder="15000">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group">
+            <label>Initial Stock</label>
+            <input type="number" class="input-field" id="newProdStock" placeholder="20">
+          </div>
+          <div class="form-group">
+            <label>Unit (bags, tins, pouches)</label>
+            <input type="text" class="input-field" id="newProdUnit" placeholder="bags">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>SKU Code</label>
+          <input type="text" class="input-field" id="newProdSku" placeholder="e.g. TEA-CAS-100">
+        </div>
+
+        <button class="btn-submit" onclick="submitNewProduct()">Add to Inventory</button>
+      `;
+
+      openModal(html);
+    }
+
+    function submitNewProduct() {
+      const name = document.getElementById('newProdName').value.trim();
+      const cat = document.getElementById('newProdCategory').value;
+      const cost = parseFloat(document.getElementById('newProdCost').value) || 0;
+      const price = parseFloat(document.getElementById('newProdPrice').value) || 0;
+      const stock = parseInt(document.getElementById('newProdStock').value) || 0;
+      const unit = document.getElementById('newProdUnit').value.trim() || 'units';
+      const sku = document.getElementById('newProdSku').value.trim() || `PRD-${Date.now().toString().slice(-4)}`;
+
+      if (!name || price <= 0) {
+        alert("Please enter product name and selling price.");
+        return;
+      }
+
+      STATE.products.push({
+        id: Date.now(),
+        name,
+        category: cat,
+        cost,
+        price,
+        stock,
+        unit,
+        minStock: 5,
+        sku,
+        desc: "Specialty item added to catalog."
+      });
+
+      closeModal();
+      showToast(`${name} added to catalog!`);
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    // --- Controls: Theme & View Toggles ---
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      document.getElementById('themeIcon').innerText = next === 'dark' ? '☀️' : '🌙';
+      document.getElementById('themeToggleBtn').innerHTML = next === 'dark' 
+        ? '<span id="themeIcon">☀️</span> Light' 
+        : '<span id="themeIcon">🌙</span> Dark';
+    }
+
+    function toggleViewSize() {
+      const shell = document.getElementById('deviceShell');
+      const isFull = shell.classList.toggle('fullscreen');
+      document.getElementById('viewIcon').innerText = isFull ? '💻' : '📱';
+      document.getElementById('viewToggleBtn').innerHTML = isFull 
+        ? '<span id="viewIcon">📱</span> Mobile Frame' 
+        : '<span id="viewIcon">💻</span> Expanded View';
+    }
+
+    // Live Clock in Status Bar
+    function updateClock() {
+      const d = new Date();
+      let h = d.getHours();
+      let m = d.getMinutes();
+      if (m < 10) m = '0' + m;
+      document.getElementById('clockTime').innerText = `${h}:${m}`;
+    }
+    setInterval(updateClock, 10000);
+    updateClock();
+
+    // Initial render
+    switchTab('dashboard');
+  </script>
+</body>
+</html>
