@@ -32,6 +32,9 @@ interface CustomerPaymentDao {
     @Query("DELETE FROM customer_payments WHERE orderId = :orderId")
     suspend fun deletePaymentsForOrder(orderId: Long)
 
+    @Query("DELETE FROM customer_payments WHERE orderId IN (:orderIds)")
+    suspend fun deletePaymentsForOrders(orderIds: List<Long>): Int
+
     @Query("DELETE FROM customer_payments")
     suspend fun deleteAllPayments()
 }

@@ -76,4 +76,14 @@ interface OrderDao {
 
     @Query("SELECT * FROM order_items WHERE orderId = :orderId ORDER BY id ASC")
     suspend fun getItemsForOrderOnce(orderId: Long): List<OrderItem>
+
+    /** Ids of demo-seeded orders: flagged rows plus legacy ORD-1001..1003 numbers. */
+    @Query("SELECT id FROM orders WHERE isSeed = 1 OR orderNumber IN (:seedNumbers)")
+    suspend fun findSeedOrderIds(seedNumbers: List<String>): List<Long>
+
+    @Query("DELETE FROM order_items WHERE orderId IN (:orderIds)")
+    suspend fun deleteItemsForOrders(orderIds: List<Long>): Int
+
+    @Query("DELETE FROM orders WHERE id IN (:ids)")
+    suspend fun deleteOrdersByIds(ids: List<Long>): Int
 }

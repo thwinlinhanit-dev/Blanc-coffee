@@ -145,6 +145,9 @@ fun OrdersScreen(
     val products by viewModel.products.collectAsState()
     val payments by viewModel.payments.collectAsState()
     val selectedStatusFilter by viewModel.orderStatusFilter.collectAsState()
+    val shopName by viewModel.shopName.collectAsState()
+    val shopAddress by viewModel.shopAddress.collectAsState()
+    val shopPhone by viewModel.shopPhone.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Orders, 1: Customers
     var searchQuery by remember { mutableStateOf("") }
@@ -492,6 +495,7 @@ fun OrdersScreen(
     if (showCreateDialog) {
         CreateOrderDialog(
             products = products,
+            initialMethod = viewModel.defaultPaymentMethod(),
             onDismiss = {
                 showCreateDialog = false
                 onDialogDismissed()
@@ -528,6 +532,9 @@ fun OrdersScreen(
             items = receipt.items.map { (p, q) -> ReceiptLine(p.name, q, p.sellingPrice * q) },
             paymentMethodName = receipt.paymentMethod.name,
             paymentStatusName = receipt.paymentStatus.name,
+            shopName = shopName,
+            shopAddress = shopAddress,
+            shopPhone = shopPhone,
             onDismiss = { pendingReceipt = null }
         )
     }
@@ -539,6 +546,9 @@ fun OrdersScreen(
             items = owed.items.map { ReceiptLine(it.productName, it.quantity, it.subtotal) },
             paymentMethodName = owed.order.paymentMethod,
             paymentStatusName = owed.order.paymentStatus,
+            shopName = shopName,
+            shopAddress = shopAddress,
+            shopPhone = shopPhone,
             onDismiss = { receiptOrder = null }
         )
     }
@@ -830,6 +840,7 @@ private fun OrderItemCard(
 private fun CreateOrderDialog(
     products: List<Product>,
     onDismiss: () -> Unit,
+    initialMethod: PaymentMethod = PaymentMethod.CASH,
     onCreateOrder: (
         customerName: String,
         customerPhone: String,
@@ -844,7 +855,7 @@ private fun CreateOrderDialog(
     var customerName by remember { mutableStateOf("") }
     var customerPhone by remember { mutableStateOf("") }
     var customerNote by remember { mutableStateOf("") }
-    var selectedPaymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
+    var selectedPaymentMethod by remember(initialMethod) { mutableStateOf(initialMethod) }
     var selectedPaymentStatus by remember { mutableStateOf(PaymentStatus.PAID) }
     var discountText by remember { mutableStateOf("") }
     var discountReason by remember { mutableStateOf("") }
@@ -1198,11 +1209,14 @@ private fun ReceiptDialog(
     items: List<ReceiptLine>,
     paymentMethodName: String,
     paymentStatusName: String,
+    shopName: String = "BLANC COFFEE",
+    shopAddress: String = "",
+    shopPhone: String = "",
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val receiptText = remember(order, items, paymentMethodName, paymentStatusName) {
-        buildReceiptText(order, items, paymentMethodName, paymentStatusName)
+    val receiptText = remember(order, items, paymentMethodName, paymentStatusName, shopName, shopAddress, shopPhone) {
+        buildReceiptText(order, items, paymentMethodName, paymentStatusName, shopName, shopAddress, shopPhone)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -1303,10 +1317,15 @@ private fun buildReceiptText(
     order: CustomerOrder,
     items: List<ReceiptLine>,
     paymentMethodName: String,
-    paymentStatusName: String
+    paymentStatusName: String,
+    shopName: String = "BLANC COFFEE",
+    shopAddress: String = "",
+    shopPhone: String = ""
 ): String = buildString {
     val div = "================================="
-    appendLine("          BLANC COFFEE")
+    appendLine("          $shopName")
+    if (shopAddress.isNotBlank()) appendLine("       $shopAddress")
+    if (shopPhone.isNotBlank()) appendLine("       $shopPhone")
     appendLine("       Coffee - Green Tea - Nuts")
     appendLine(div)
     appendLine("Order : ${order.orderNumber}")

@@ -1092,6 +1092,10 @@
         <span class="icon">💰</span>
         <span>Finance</span>
       </button>
+      <button class="nav-btn" onclick="switchTab('settings')" id="nav-settings">
+        <span class="icon">⚙️</span>
+        <span>Settings</span>
+      </button>
     </nav>
 
     <!-- Toast Component -->
@@ -1236,7 +1240,44 @@
       ],
 
       // Credit-tab payments: partial/full cash-ins against UNPAID orders
-      payments: []
+      payments: [],
+
+      // Device-local settings (mirrors native Settings tab; persisted in browser)
+      settings: loadSettings()
+    };
+
+    function defaultSettings() {
+      return {
+        shopName: 'BLANC COFFEE',
+        shopAddress: '',
+        shopPhone: '',
+        theme: 'light',
+        defaultPayment: 'KBZPAY'
+      };
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem('blanc-settings');
+        if (!raw) return defaultSettings();
+        return Object.assign(defaultSettings(), JSON.parse(raw));
+      } catch (e) {
+        return defaultSettings();
+      }
+    }
+
+    function saveSettings() {
+      try {
+        localStorage.setItem('blanc-settings', JSON.stringify(STATE.settings));
+      } catch (e) { /* private mode — settings just last for the session */ }
+    }
+
+    // Seed ids = demo data (user-added rows use Date.now() ids and never match)
+    const SEED_IDS = {
+      products: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      rawMaterials: [101, 102, 103, 104, 105],
+      orders: [1, 2, 3],
+      transactions: [1, 2, 3, 4, 5, 6, 7]
     };
 
     // Helper currency formatter for Myanmar Kyat (MMK)
@@ -1384,7 +1425,8 @@
         dashboard: { title: "BLANC COFFEE", sub: "Shop Manager • Myanmar" },
         orders: { title: "Customer Orders", sub: "Real-time orders & slips" },
         inventory: { title: "Product Inventory", sub: "Stock levels & catalog" },
-        finance: { title: "Finance Ledger", sub: "Income & expense records" }
+        finance: { title: "Finance Ledger", sub: "Income & expense records" },
+        settings: { title: "Settings", sub: "Shop, appearance & data" }
       };
 
       document.getElementById('screenTitle').innerText = titles[tab].title;
@@ -1392,7 +1434,7 @@
 
       // Update FAB icon/visibility
       const fab = document.getElementById('mainFab');
-      if (tab === 'dashboard') {
+      if (tab === 'dashboard' || tab === 'settings') {
         fab.style.display = 'none';
       } else {
         fab.style.display = 'flex';
@@ -1431,6 +1473,8 @@
         renderInventory(container);
       } else if (STATE.currentTab === 'finance') {
         renderFinance(container);
+      } else if (STATE.currentTab === 'settings') {
+        renderSettings(container);
       }
       // The scrollable viewport keeps its position across re-renders, which left
       // the top card scrolled out of sight after switching tabs — always start at top.
@@ -1706,8 +1750,11 @@
     function openCloseoutModal() {
       const co = computeCloseout(startOfDay(Date.now()));
       const dateStr = new Date(co.dayStart).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      const lines = [
-        'BLANC COFFEE — DAY CLOSE-OUT', dateStr, '------------------------------',
+      const shopH = [STATE.settings.shopName || 'BLANC COFFEE'];
+      if (STATE.settings.shopAddress) shopH.push(STATE.settings.shopAddress);
+      if (STATE.settings.shopPhone) shopH.push(STATE.settings.shopPhone);
+      const lines = shopH.concat([
+        'DAY CLOSE-OUT', dateStr, '------------------------------',
         `Orders: ${co.count}`, `Gross sales: ${formatMMK(co.gross)}`, `Discounts: -${formatMMK(co.discounts)}`,
         `Net sales: ${formatMMK(co.net)}`, `Cash in (ledger): +${formatMMK(co.income)}`,
         `Cash out (ledger): -${formatMMK(co.outcome)}`, `Net cash: ${formatMMK(co.netCash)}`,
@@ -1718,7 +1765,7 @@
         '------------------------------',
         `Tabs opened: ${formatMMK(co.tabsOpened)}`, `Tabs collected: ${formatMMK(co.tabsCollected)}`,
         `Tabs outstanding: ${formatMMK(co.tabsOutstanding)}`
-      ];
+      ]);
       window._closeoutText = lines.join('\n');
       const html = `
         <div class="modal-header">
@@ -1837,8 +1884,12 @@
     function closeoutText() {
       const co = computeCloseout(startOfDay(Date.now()));
       const dateStr = new Date(co.dayStart).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      return [
-        'BLANC COFFEE — DAY CLOSE-OUT', dateStr, '------------------------------',
+      const shop = STATE.settings;
+      const head = [`${shop.shopName || 'BLANC COFFEE'} — DAY CLOSE-OUT`];
+      if (shop.shopAddress) head.push(shop.shopAddress);
+      if (shop.shopPhone) head.push(shop.shopPhone);
+      return head.concat([
+        dateStr, '------------------------------',
         `Orders: ${co.count}`, `Gross sales: ${formatMMK(co.gross)}`, `Discounts: -${formatMMK(co.discounts)}`,
         `Net sales: ${formatMMK(co.net)}`, `Cash in (ledger): +${formatMMK(co.income)}`,
         `Cash out (ledger): -${formatMMK(co.outcome)}`, `Net cash: ${formatMMK(co.netCash)}`,
@@ -1849,7 +1900,7 @@
         '------------------------------',
         `Tabs opened: ${formatMMK(co.tabsOpened)}`, `Tabs collected: ${formatMMK(co.tabsCollected)}`,
         `Tabs outstanding: ${formatMMK(co.tabsOutstanding)}`
-      ].join('\n');
+      ]).join('\n');
     }
 
     function exportData() {
@@ -2582,6 +2633,201 @@
       renderCurrentScreen();
     }
 
+    // 3c. SETTINGS TAB — shop profile, appearance, data, defaults, about
+    function renderSettings(container) {
+      const s = STATE.settings;
+      const payMethods = ['CASH', 'KBZPAY', 'CB_PAY', 'AYA_PAY', 'CARD'];
+      container.innerHTML = `
+        <!-- Shop profile -->
+        <div class="card">
+          <div class="section-head"><h3>🏪 Shop Profile</h3></div>
+          <p style="font-size:0.74rem; color:var(--shop-text-secondary);">Printed on receipts and close-outs.</p>
+          <div class="form-group">
+            <label>Shop name</label>
+            <input type="text" class="input-field" id="setShopName" value="${(s.shopName || '').replace(/"/g, '&quot;')}">
+          </div>
+          <div class="form-group">
+            <label>Address (optional)</label>
+            <input type="text" class="input-field" id="setShopAddress" value="${(s.shopAddress || '').replace(/"/g, '&quot;')}">
+          </div>
+          <div class="form-group">
+            <label>Phone (optional)</label>
+            <input type="text" class="input-field" id="setShopPhone" value="${(s.shopPhone || '').replace(/"/g, '&quot;')}">
+          </div>
+          <button class="btn-primary-sm" style="padding:10px 18px;" onclick="saveShopProfile()">Save Profile</button>
+        </div>
+
+        <!-- Appearance -->
+        <div class="card">
+          <div class="section-head"><h3>🎨 Appearance</h3></div>
+          <div class="chips-row">
+            <button class="chip ${s.theme === 'light' ? 'active' : ''}" onclick="setThemePref('light')">☀️ Light</button>
+            <button class="chip ${s.theme === 'dark' ? 'active' : ''}" onclick="setThemePref('dark')">🌙 Dark</button>
+          </div>
+        </div>
+
+        <!-- Backup shortcuts -->
+        <div class="card">
+          <div class="section-head"><h3>💾 Data Backup</h3></div>
+          <p style="font-size:0.74rem; color:var(--shop-text-secondary);">Same exporters as the Dashboard card.</p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+            <button class="btn-primary-sm" style="padding:10px;" onclick="switchTab('dashboard')">Open Backup Card</button>
+            <button class="btn-action-sm" style="padding:10px;" onclick="document.getElementById('importBackupFile2').click()">Restore Backup</button>
+            <input type="file" id="importBackupFile2" accept=".json,application/json" style="display:none;" onchange="importBackupFile(this)">
+          </div>
+        </div>
+
+        <!-- Demo data -->
+        <div class="card">
+          <div class="section-head"><h3>🧪 Demo Data</h3></div>
+          <p style="font-size:0.74rem; color:var(--shop-text-secondary);">Remove only the built-in sample rows. Anything you added is never touched.</p>
+          <button class="btn-action-sm" style="padding:10px 18px; margin-top:8px;" onclick="previewDemoClear()">Remove Demo Data…</button>
+        </div>
+
+        <!-- Defaults -->
+        <div class="card">
+          <div class="section-head"><h3>💳 New Order Defaults</h3></div>
+          <div class="chips-row">
+            ${payMethods.map(m => `<button class="chip ${s.defaultPayment === m ? 'active' : ''}" onclick="setDefaultPayment('${m}')">${m.replace('_', ' ')}</button>`).join('')}
+          </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="card" style="border-color:var(--outcome-red);">
+          <div class="section-head"><h3 style="color:var(--outcome-red);">☢️ Danger Zone</h3></div>
+          <p style="font-size:0.74rem; color:var(--shop-text-secondary);">Permanently deletes everything. Export first — this cannot be undone.</p>
+          <button class="btn-action-sm" style="padding:10px 18px; margin-top:8px; color:var(--outcome-red);" onclick="askClearAll(false)">Clear All Data…</button>
+        </div>
+
+        <!-- About -->
+        <div class="card">
+          <div class="section-head"><h3>ℹ️ About</h3></div>
+          <p style="font-size:0.8rem; font-weight:700;">BLANC COFFEE Shop Manager</p>
+          <p style="font-size:0.74rem; color:var(--shop-text-secondary);">Offline-first: orders, tabs, inventory, raw tracking, ledger, close-outs and backups — all on this device.</p>
+          <p style="font-size:0.74rem; color:var(--warning-orange); font-weight:700; margin-top:6px;">Tip: export a backup after each busy day.</p>
+        </div>
+      `;
+    }
+
+    function saveShopProfile() {
+      STATE.settings.shopName = (document.getElementById('setShopName').value.trim() || 'BLANC COFFEE');
+      STATE.settings.shopAddress = document.getElementById('setShopAddress').value.trim();
+      STATE.settings.shopPhone = document.getElementById('setShopPhone').value.trim();
+      saveSettings();
+      showToast('Shop profile saved — new receipts use it.');
+    }
+
+    function setThemePref(theme) {
+      STATE.settings.theme = theme;
+      saveSettings();
+      applyThemePref();
+      renderCurrentScreen();
+    }
+
+    function applyThemePref() {
+      const next = STATE.settings.theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {
+        btn.innerHTML = next === 'dark'
+          ? '<span id="themeIcon">☀️</span> Light'
+          : '<span id="themeIcon">🌙</span> Dark';
+      }
+    }
+
+    function setDefaultPayment(method) {
+      STATE.settings.defaultPayment = method;
+      saveSettings();
+      showToast('Default payment: ' + method.replace('_', ' '));
+      renderCurrentScreen();
+    }
+
+    function countDemoRows() {
+      const inIds = (list, ids) => list.filter(x => ids.includes(x.id));
+      const demoOrders = inIds(STATE.orders, SEED_IDS.orders);
+      const demoOrderIds = demoOrders.map(o => o.id);
+      const demoRaws = inIds(STATE.rawMaterials, SEED_IDS.rawMaterials);
+      const demoRawIds = demoRaws.map(m => m.id);
+      return {
+        products: inIds(STATE.products, SEED_IDS.products).length,
+        orders: demoOrders.length,
+        items: STATE.orders.filter(o => demoOrderIds.includes(o.id)).reduce((s, o) => s + o.items.length, 0),
+        transactions: STATE.transactions.filter(t => SEED_IDS.transactions.includes(t.id) || (t.refOrder && demoOrders.some(o => o.orderNumber === t.refOrder))).length,
+        rawMaterials: demoRaws.length,
+        movements: STATE.rawMovements.filter(m => demoRawIds.includes(m.materialId)).length,
+        recipes: STATE.recipes.filter(r => demoRawIds.includes(r.materialId)).length,
+        payments: STATE.payments.filter(p => demoOrderIds.includes(p.orderId)).length
+      };
+    }
+
+    function previewDemoClear() {
+      const c = countDemoRows();
+      const total = c.products + c.orders + c.transactions + c.rawMaterials;
+      if (total === 0) {
+        showToast('No demo data found — already using real data.');
+        return;
+      }
+      const html = `
+        <div class="modal-header">
+          <h3>Remove demo data?</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="background:var(--shop-surface-variant); padding:12px; border-radius:12px; font-size:0.82rem;">
+          <div>${c.products} products, ${c.orders} orders (+${c.items} items, +${c.payments} payments)</div>
+          <div>${c.transactions} ledger entries, ${c.rawMaterials} raw ingredients (+${c.movements} movements)</div>
+          <div style="margin-top:6px; font-weight:700;">Your own data is untouched.</div>
+        </div>
+        <button class="btn-submit" onclick="clearDemoData()">Remove Demo</button>
+      `;
+      openModal(html);
+    }
+
+    function clearDemoData() {
+      const c = countDemoRows();
+      const demoOrderIds = STATE.orders.filter(o => SEED_IDS.orders.includes(o.id)).map(o => o.id);
+      const demoOrderNums = STATE.orders.filter(o => SEED_IDS.orders.includes(o.id)).map(o => o.orderNumber);
+      const demoRawIds = STATE.rawMaterials.filter(m => SEED_IDS.rawMaterials.includes(m.id)).map(m => m.id);
+      STATE.products = STATE.products.filter(p => !SEED_IDS.products.includes(p.id));
+      STATE.orders = STATE.orders.filter(o => !SEED_IDS.orders.includes(o.id));
+      STATE.transactions = STATE.transactions.filter(t => !(SEED_IDS.transactions.includes(t.id) || (t.refOrder && demoOrderNums.includes(t.refOrder))));
+      STATE.rawMaterials = STATE.rawMaterials.filter(m => !SEED_IDS.rawMaterials.includes(m.id));
+      STATE.rawMovements = STATE.rawMovements.filter(m => !demoRawIds.includes(m.materialId));
+      STATE.recipes = STATE.recipes.filter(r => !demoRawIds.includes(r.materialId));
+      STATE.payments = STATE.payments.filter(p => !demoOrderIds.includes(p.orderId));
+      closeModal();
+      showToast(`Removed ${c.products + c.orders + c.transactions + c.rawMaterials} demo rows — now 100% real data.`);
+      updateBadges();
+      renderCurrentScreen();
+    }
+
+    function askClearAll(armed) {
+      const html = `
+        <div class="modal-header">
+          <h3 style="color:var(--outcome-red);">Clear ALL data?</h3>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p style="font-size:0.82rem;">${armed
+          ? 'Last chance — this wipes every product, order, payment, ledger entry and raw movement.'
+          : 'This deletes everything (settings are kept). Export a backup first.'}</p>
+        <button class="btn-submit" style="background:var(--outcome-red);" onclick="${armed ? 'clearAllData()' : 'askClearAll(true)'}">${armed ? 'DELETE EVERYTHING' : 'Continue'}</button>
+      `;
+      openModal(html);
+    }
+
+    function clearAllData() {
+      STATE.products = [];
+      STATE.orders = [];
+      STATE.transactions = [];
+      STATE.rawMaterials = [];
+      STATE.rawMovements = [];
+      STATE.recipes = [];
+      STATE.payments = [];
+      closeModal();
+      showToast('All shop data cleared.');
+      updateBadges();
+      renderCurrentScreen();
+    }
+
     // 4. FINANCE SCREEN
     function renderFinance(container) {
       const filteredTx = STATE.transactions.filter(t => {
@@ -2695,7 +2941,7 @@
         name: '',
         phone: '',
         note: '',
-        paymentMethod: 'KBZPAY',
+        paymentMethod: STATE.settings.defaultPayment || 'KBZPAY',
         isPaid: true,
         discount: 0,
         discountReason: '',
@@ -2748,11 +2994,7 @@
           <div class="form-group">
             <label>Payment Method</label>
             <select class="input-field" onchange="window._orderDraft.paymentMethod = this.value">
-              <option value="KBZPAY">KBZPay</option>
-              <option value="CASH">Cash</option>
-              <option value="CARD">Credit/Debit Card</option>
-              <option value="CB_PAY">CB Pay</option>
-              <option value="AYA_PAY">AYA Pay</option>
+              ${['KBZPAY', 'CASH', 'CARD', 'CB_PAY', 'AYA_PAY'].map(m => `<option value="${m}" ${window._orderDraft.paymentMethod === m ? 'selected' : ''}>${m === 'KBZPAY' ? 'KBZPay' : m === 'CASH' ? 'Cash' : m === 'CARD' ? 'Credit/Debit Card' : m === 'CB_PAY' ? 'CB Pay' : 'AYA Pay'}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -2930,7 +3172,11 @@
         timeStyle: 'short'
       });
 
-      const slipText = `================================\n   BLANC COFFEE — ORDER SLIP\n       Yangon, Myanmar\n================================\nOrder #: ${order.orderNumber}\nDate: ${dateStr}\nCustomer: ${order.customerName}\nPhone: ${order.customerPhone}\n--------------------------------\n${order.items.map(i => `${i.quantity}x ${i.productName.substring(0, 22)}\n   @ ${formatMMK(i.price)} = ${formatMMK(i.price * i.quantity)}`).join('\n')}\n--------------------------------\nSUBTOTAL: ${formatMMK(order.totalAmount)}\n${(order.discount || 0) > 0 ? `DISCOUNT: -${formatMMK(order.discount)}${order.discountReason ? ' (' + order.discountReason + ')' : ''}\n` : ''}TOTAL: ${formatMMK(orderNet(order))}\nPAYMENT: ${order.paymentStatus} (${order.paymentMethod})\nSTATUS: ${order.status}\n================================\nThank you for choosing BLANC COFFEE!\nကျေးဇူးတင်ပါသည်`;
+      const shop = STATE.settings;
+      const shopLines = [shop.shopName || 'BLANC COFFEE'];
+      if (shop.shopAddress) shopLines.push(shop.shopAddress);
+      if (shop.shopPhone) shopLines.push(shop.shopPhone);
+      const slipText = `================================\n   ${(shop.shopName || 'BLANC COFFEE')} — ORDER SLIP\n${shopLines.slice(1).map(l => '       ' + l).join('\n')}${shopLines.length > 1 ? '\n' : ''}       Yangon, Myanmar\n================================\nOrder #: ${order.orderNumber}\nDate: ${dateStr}\nCustomer: ${order.customerName}\nPhone: ${order.customerPhone}\n--------------------------------\n${order.items.map(i => `${i.quantity}x ${i.productName.substring(0, 22)}\n   @ ${formatMMK(i.price)} = ${formatMMK(i.price * i.quantity)}`).join('\n')}\n--------------------------------\nSUBTOTAL: ${formatMMK(order.totalAmount)}\n${(order.discount || 0) > 0 ? `DISCOUNT: -${formatMMK(order.discount)}${order.discountReason ? ' (' + order.discountReason + ')' : ''}\n` : ''}TOTAL: ${formatMMK(orderNet(order))}\nPAYMENT: ${order.paymentStatus} (${order.paymentMethod})\nSTATUS: ${order.status}\n================================\nThank you for choosing ${(shop.shopName || 'BLANC COFFEE')}!\nကျေးဇူးတင်ပါသည်`;
 
       const html = `
         <div class="modal-header">
@@ -2939,8 +3185,8 @@
         </div>
 
         <div class="receipt-slip">
-          <div class="receipt-title">☕ BLANC COFFEE</div>
-          <div style="text-align:center; font-size:0.74rem;">Specialty Coffee, Tea & Nuts • Myanmar</div>
+          <div class="receipt-title">☕ ${STATE.settings.shopName || 'BLANC COFFEE'}</div>
+          <div style="text-align:center; font-size:0.74rem;">${STATE.settings.shopAddress ? STATE.settings.shopAddress + ' • ' : ''}Specialty Coffee, Tea & Nuts • Myanmar${STATE.settings.shopPhone ? ' • ' + STATE.settings.shopPhone : ''}</div>
           <div class="receipt-divider"></div>
           <div><strong>Order:</strong> ${order.orderNumber}</div>
           <div><strong>Date:</strong> ${dateStr}</div>
@@ -3266,15 +3512,9 @@
       renderCurrentScreen();
     }
 
-    // --- Controls: Theme & View Toggles ---
+    // --- Controls: Theme & View Toggles (theme persists via Settings) ---
     function toggleTheme() {
-      const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      document.getElementById('themeIcon').innerText = next === 'dark' ? '☀️' : '🌙';
-      document.getElementById('themeToggleBtn').innerHTML = next === 'dark' 
-        ? '<span id="themeIcon">☀️</span> Light' 
-        : '<span id="themeIcon">🌙</span> Dark';
+      setThemePref(STATE.settings.theme === 'dark' ? 'light' : 'dark');
     }
 
     function toggleViewSize() {
@@ -3298,6 +3538,7 @@
     updateClock();
 
     // Initial render
+    applyThemePref();
     switchTab('dashboard');
   </script>
 </body>

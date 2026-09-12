@@ -33,6 +33,11 @@ data class RawMaterial(
     val note: String = "",
     /** Epoch millis of expiry, or null when the ingredient doesn't expire. */
     val expiryDate: Long? = null,
+    /**
+     * True for rows planted by the built-in demo seeder. Used only by
+     * "Remove demo data" — real shop rows are always false and never match.
+     */
+    val isSeed: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()
 ) {
     val isLowStock: Boolean

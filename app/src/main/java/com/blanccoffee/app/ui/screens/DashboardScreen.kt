@@ -92,6 +92,9 @@ fun DashboardScreen(
     val rawMaterials by viewModel.rawMaterials.collectAsState()
     val weeklyTrend by viewModel.weeklyTrend.collectAsState()
     val closeoutToday by viewModel.closeoutToday.collectAsState()
+    val shopName by viewModel.shopName.collectAsState()
+    val shopAddress by viewModel.shopAddress.collectAsState()
+    val shopPhone by viewModel.shopPhone.collectAsState()
 
     val recentOrders = orders.take(3)
     val recentTransactions = transactions.take(4)
@@ -323,7 +326,12 @@ fun DashboardScreen(
 
         // Day close-out report
         item {
-            CloseoutCard(closeout = closeoutToday)
+            CloseoutCard(
+                closeout = closeoutToday,
+                shopName = shopName,
+                shopAddress = shopAddress,
+                shopPhone = shopPhone
+            )
         }
 
         // Offline backup / restore

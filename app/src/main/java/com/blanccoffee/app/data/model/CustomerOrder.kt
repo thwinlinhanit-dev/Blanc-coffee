@@ -47,7 +47,9 @@ data class CustomerOrder(
     val discountAmount: Double = 0.0,
     val discountReason: String = "",
     val createdAt: Long = System.currentTimeMillis(),
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+    /** Demo-seeder flag — see [Product.isSeed]. Never true for real shop orders. */
+    val isSeed: Boolean = false
 ) {
     /** What the customer actually owes for this order (never negative). */
     val netAmount: Double

@@ -34,6 +34,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -188,6 +190,9 @@ fun SalesTrendCard(
 @Composable
 fun CloseoutCard(
     closeout: DailyCloseout?,
+    shopName: String = "BLANC COFFEE",
+    shopAddress: String = "",
+    shopPhone: String = "",
     modifier: Modifier = Modifier
 ) {
     var showReport by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -261,7 +266,13 @@ fun CloseoutCard(
     }
 
     if (showReport && closeout != null) {
-        CloseoutDialog(closeout = closeout, onDismiss = { showReport = false })
+        CloseoutDialog(
+            closeout = closeout,
+            shopName = shopName,
+            shopAddress = shopAddress,
+            shopPhone = shopPhone,
+            onDismiss = { showReport = false }
+        )
     }
 }
 
@@ -285,6 +296,9 @@ private fun CloseoutStat(label: String, value: String, color: androidx.compose.u
 @Composable
 private fun CloseoutDialog(
     closeout: DailyCloseout,
+    shopName: String = "BLANC COFFEE",
+    shopAddress: String = "",
+    shopPhone: String = "",
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -347,8 +361,11 @@ private fun CloseoutDialog(
                 onClick = {
                     val send = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "BLANC COFFEE Close-Out ${closeout.dayLabel}")
-                        putExtra(Intent.EXTRA_TEXT, closeout.toShareText())
+                        putExtra(Intent.EXTRA_SUBJECT, "$shopName Close-Out ${closeout.dayLabel}")
+                        putExtra(
+                            Intent.EXTRA_TEXT,
+                            closeout.toShareText(shopName, shopAddress, shopPhone)
+                        )
                     }
                     context.startActivity(Intent.createChooser(send, "Share Close-Out via"))
                 },

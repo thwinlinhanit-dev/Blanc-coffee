@@ -50,6 +50,19 @@ interface RawMaterialDao {
     @Query("SELECT COUNT(*) FROM raw_materials")
     suspend fun getRawMaterialCount(): Int
 
+    /** Ids of demo-seeded raw ingredients: flagged rows plus legacy seed SKUs. */
+    @Query("SELECT id FROM raw_materials WHERE isSeed = 1 OR sku IN (:seedSkus)")
+    suspend fun findSeedRawIds(seedSkus: List<String>): List<Long>
+
+    @Query("DELETE FROM raw_movements WHERE materialId IN (:materialIds)")
+    suspend fun deleteMovementsForMaterials(materialIds: List<Long>): Int
+
+    @Query("DELETE FROM product_recipes WHERE materialId IN (:materialIds) OR productId IN (:productIds)")
+    suspend fun deleteRecipesForIds(materialIds: List<Long>, productIds: List<Long>): Int
+
+    @Query("DELETE FROM raw_materials WHERE id IN (:ids)")
+    suspend fun deleteRawsByIds(ids: List<Long>): Int
+
     @Query("SELECT * FROM raw_materials ORDER BY id ASC")
     suspend fun getAllRawMaterialsOnce(): List<RawMaterial>
 

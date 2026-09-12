@@ -651,18 +651,17 @@ class ShopRepository(
         transactionDao.deleteTransaction(transaction)
     }
 
-    /** Deletes a finance entry from the ledger. */
-    suspend fun deleteTransaction(transaction: Transaction) = withContext(Dispatchers.IO) {
-        transactionDao.deleteTransaction(transaction)
-    }
-
     /**
      * Builds the multi-format export bundle: full-restore `backup.json` plus
      * spreadsheet-ready CSVs (ledger, orders, products, raw materials, payments)
      * and today's close-out as plain text — packed as one ZIP byte array.
      * Everything is computed from one-shot DAO reads on [Dispatchers.IO].
      */
-    suspend fun exportSheetsBundle(): ByteArray = withContext(Dispatchers.IO) {
+    suspend fun exportSheetsBundle(
+        shopName: String = "BLANC COFFEE",
+        shopAddress: String = "",
+        shopPhone: String = ""
+    ): ByteArray = withContext(Dispatchers.IO) {
         val products = productDao.getAllProductsOnce()
         val orders = orderDao.getAllOrdersOnce()
         val itemsByOrder = orderDao.getAllOrderItemsOnce().groupBy { it.orderId }
@@ -692,7 +691,7 @@ class ShopRepository(
                 "products.csv" to productsCsv(products),
                 "raw_materials.csv" to rawMaterialsCsv(raws, movements),
                 "payments.csv" to paymentsCsv(payments, ordersById),
-                "closeout-$stamp.txt" to closeout.toShareText(),
+                "closeout-$stamp.txt" to closeout.toShareText(shopName, shopAddress, shopPhone),
                 "README.txt" to
                     "BLANC COFFEE export ($stamp)\n" +
                     "backup.json = full restore via Dashboard > Restore.\n" +
@@ -707,6 +706,137 @@ class ShopRepository(
     companion object {
         const val BACKUP_APP_TAG = "blanc-coffee"
         const val BACKUP_VERSION = 1
+
+        /** Legacy seed signatures (pre-isSeed-flag installs) for demo-data matching. */
+        val SEED_PRODUCT_SKUS = listOf(
+            "COF-ETH-250", "COF-ESP-500", "COF-NCB-330", "COF-DRP-10",
+            "TEA-MTC-050", "TEA-SNC-100", "TEA-GMC-150", "TEA-MLC-500",
+            "NUT-SLT-200", "NUT-RAW-400", "NUT-HNY-200", "NUT-MTC-180"
+        )
+        val SEED_RAW_SKUS = listOf(
+            "RAW-NUT-25KG", "RAW-COF-60KG", "RAW-MTC-1KG", "RAW-HNY-1L", "RAW-PKG-500"
+        )
+        val SEED_ORDER_NUMBERS = listOf("ORD-1001", "ORD-1002", "ORD-1003")
+        val SEED_TXN_TITLES = listOf(
+            "Order #ORD-1001 - Emma Watson",
+            "Order #ORD-1002 - Marcus Chen",
+            "Custom Kraft Pouches & Stickers",
+            "Wholesale to Downtown Bistro",
+            "Batch Coffee Bean Sourcing",
+            "Shop Water Filtration & Power",
+            "Weekend Tea & Nut Gift Box"
+        )
+    }
+
+    /** What "Remove demo data" matched (parents + linked children). */
+    data class SeedClearCounts(
+        val products: Int = 0,
+        val orders: Int = 0,
+        val orderItems: Int = 0,
+        val transactions: Int = 0,
+        val rawMaterials: Int = 0,
+        val movements: Int = 0,
+        val recipes: Int = 0,
+        val payments: Int = 0
+    ) {
+        val total: Int
+            get() = products + orders + orderItems + transactions +
+                rawMaterials + movements + recipes + payments
+    }
+
+    private suspend fun collectSeedIds(): SeedIdSets {
+        val productIds = productDao.findSeedProductIds(SEED_PRODUCT_SKUS)
+        val orderIds = orderDao.findSeedOrderIds(SEED_ORDER_NUMBERS)
+        val rawIds = rawMaterialDao.findSeedRawIds(SEED_RAW_SKUS)
+        val txnIds = transactionDao.findSeedTransactionIds(
+            orderIds.ifEmpty { listOf(-1L) },
+            SEED_TXN_TITLES
+        )
+        return SeedIdSets(productIds, orderIds, rawIds, txnIds)
+    }
+
+    private data class SeedIdSets(
+        val productIds: List<Long>,
+        val orderIds: List<Long>,
+        val rawIds: List<Long>,
+        val txnIds: List<Long>
+    )
+
+    /**
+     * Counts demo-seeded rows (flagged plus legacy seed signatures) WITHOUT
+     * deleting anything — shown in the confirm dialog so staff see exactly
+     * what "Remove demo data" will take. Real shop rows can never match:
+     * flags are only set by the seeder and legacy signatures are the fixed
+     * seed SKUs / order numbers / titles.
+     */
+    suspend fun previewSeedClear(): SeedClearCounts = withContext(Dispatchers.IO) {
+        val ids = collectSeedIds()
+        SeedClearCounts(
+            products = ids.productIds.size,
+            orders = ids.orderIds.size,
+            transactions = ids.txnIds.size,
+            rawMaterials = ids.rawIds.size
+        )
+    }
+
+    /**
+     * Deletes exactly what [previewSeedClear] matched (plus their linked order
+     * items, payments, movements and recipes), atomically. Returns per-table
+     * counts for the result toast.
+     */
+    suspend fun clearSeedData(): SeedClearCounts = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            val ids = collectSeedIds()
+            val items = if (ids.orderIds.isNotEmpty()) {
+                orderDao.deleteItemsForOrders(ids.orderIds)
+            } else 0
+            val pays = if (ids.orderIds.isNotEmpty()) {
+                customerPaymentDao.deletePaymentsForOrders(ids.orderIds)
+            } else 0
+            val txns = if (ids.txnIds.isNotEmpty()) {
+                transactionDao.deleteTransactionsByIds(ids.txnIds)
+            } else 0
+            val orders = if (ids.orderIds.isNotEmpty()) {
+                orderDao.deleteOrdersByIds(ids.orderIds)
+            } else 0
+            val moves = if (ids.rawIds.isNotEmpty()) {
+                rawMaterialDao.deleteMovementsForMaterials(ids.rawIds)
+            } else 0
+            val recipes = if (ids.rawIds.isNotEmpty() || ids.productIds.isNotEmpty()) {
+                rawMaterialDao.deleteRecipesForIds(
+                    ids.rawIds.ifEmpty { listOf(-1L) },
+                    ids.productIds.ifEmpty { listOf(-1L) }
+                )
+            } else 0
+            val raws = if (ids.rawIds.isNotEmpty()) {
+                rawMaterialDao.deleteRawsByIds(ids.rawIds)
+            } else 0
+            val prods = if (ids.productIds.isNotEmpty()) {
+                productDao.deleteProductsByIds(ids.productIds)
+            } else 0
+            SeedClearCounts(
+                products = prods, orders = orders, orderItems = items,
+                transactions = txns, rawMaterials = raws, movements = moves,
+                recipes = recipes, payments = pays
+            )
+        }
+    }
+
+    /**
+     * Danger zone: wipes every shop table (products, orders, ledger, raw stock,
+     * tabs) atomically. Settings (shop profile, theme) are kept.
+     */
+    suspend fun clearAllData() = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            customerPaymentDao.deleteAllPayments()
+            orderDao.deleteAllOrderItems()
+            orderDao.deleteAllOrders()
+            transactionDao.deleteAllTransactions()
+            rawMaterialDao.deleteAllMovements()
+            rawMaterialDao.deleteAllRecipes()
+            rawMaterialDao.deleteAllRawMaterials()
+            productDao.deleteAllProducts()
+        }
     }
 
     /**
@@ -735,6 +865,7 @@ class ShopRepository(
                     .put("description", p.description)
                     .put("lastUpdated", p.lastUpdated)
                     .put("madeToOrder", p.madeToOrder)
+                    .put("isSeed", p.isSeed)
                     .apply { if (p.expiryDate != null) put("expiryDate", p.expiryDate) })
             }
         })
@@ -754,6 +885,7 @@ class ShopRepository(
                     .put("discountAmount", o.discountAmount)
                     .put("discountReason", o.discountReason)
                     .put("createdAt", o.createdAt)
+                    .put("isSeed", o.isSeed)
                     .apply { if (o.completedAt != null) put("completedAt", o.completedAt) })
             }
         })
@@ -781,6 +913,7 @@ class ShopRepository(
                     .put("title", t.title)
                     .put("note", t.note)
                     .put("timestamp", t.timestamp)
+                    .put("isSeed", t.isSeed)
                     .apply { if (t.referenceOrderId != null) put("referenceOrderId", t.referenceOrderId) })
             }
         })
@@ -796,6 +929,7 @@ class ShopRepository(
                     .put("sku", m.sku)
                     .put("note", m.note)
                     .put("lastUpdated", m.lastUpdated)
+                    .put("isSeed", m.isSeed)
                     .apply { if (m.expiryDate != null) put("expiryDate", m.expiryDate) })
             }
         })
@@ -881,6 +1015,7 @@ class ShopRepository(
                         description = o.optString("description", ""),
                         expiryDate = o.optLongOrNull("expiryDate"),
                         madeToOrder = o.optBoolean("madeToOrder", false),
+                        isSeed = o.optBoolean("isSeed", false),
                         lastUpdated = o.optLong("lastUpdated", System.currentTimeMillis())
                     )
                 )
@@ -903,7 +1038,8 @@ class ShopRepository(
                         discountAmount = o.optDouble("discountAmount", 0.0),
                         discountReason = o.optString("discountReason", ""),
                         createdAt = o.optLong("createdAt", System.currentTimeMillis()),
-                        completedAt = o.optLongOrNull("completedAt")
+                        completedAt = o.optLongOrNull("completedAt"),
+                        isSeed = o.optBoolean("isSeed", false)
                     )
                 )
             }
@@ -936,6 +1072,7 @@ class ShopRepository(
                         title = o.getString("title"),
                         note = o.optString("note", ""),
                         referenceOrderId = o.optLongOrNull("referenceOrderId"),
+                        isSeed = o.optBoolean("isSeed", false),
                         timestamp = o.optLong("timestamp", System.currentTimeMillis())
                     )
                 )
@@ -954,6 +1091,7 @@ class ShopRepository(
                         sku = o.optString("sku", ""),
                         note = o.optString("note", ""),
                         expiryDate = o.optLongOrNull("expiryDate"),
+                        isSeed = o.optBoolean("isSeed", false),
                         lastUpdated = o.optLong("lastUpdated", System.currentTimeMillis())
                     )
                 )
@@ -1193,7 +1331,7 @@ class ShopRepository(
                 description = "Roasted macadamia core enrobed in smooth Belgian white chocolate infused with Uji matcha. 180g."
             )
         )
-        productDao.insertProducts(starterProducts)
+        productDao.insertProducts(starterProducts.map { it.copy(isSeed = true) })
 
         // Transactions (financial history in MMK: today and past few days)
         val starterTransactions = listOf(
@@ -1256,7 +1394,7 @@ class ShopRepository(
                 timestamp = now - 2 * day - 4 * hour
             )
         )
-        transactionDao.insertTransactions(starterTransactions)
+        transactionDao.insertTransactions(starterTransactions.map { it.copy(isSeed = true) })
 
         // Starter Orders in MMK (featuring Myanmar customer names & requests)
         val order1 = CustomerOrder(
@@ -1270,7 +1408,8 @@ class ShopRepository(
             totalAmount = 64000.0,
             totalCost = 33000.0,
             createdAt = now - 2 * hour,
-            completedAt = now - 1 * hour - 30 * 60 * 1000L
+            completedAt = now - 1 * hour - 30 * 60 * 1000L,
+            isSeed = true
         )
         val orderId1 = orderDao.insertOrder(order1)
         orderDao.insertOrderItems(listOf(
@@ -1306,7 +1445,8 @@ class ShopRepository(
             paymentMethod = PaymentMethod.MOBILE_PAY.name,
             totalAmount = 38000.0,
             totalCost = 20500.0,
-            createdAt = now - 45 * 60 * 1000L
+            createdAt = now - 45 * 60 * 1000L,
+            isSeed = true
         )
         val orderId2 = orderDao.insertOrder(order2)
         orderDao.insertOrderItems(listOf(
@@ -1342,7 +1482,8 @@ class ShopRepository(
             paymentMethod = PaymentMethod.CARD.name,
             totalAmount = 76000.0,
             totalCost = 38000.0,
-            createdAt = now - 15 * 60 * 1000L
+            createdAt = now - 15 * 60 * 1000L,
+            isSeed = true
         )
         val orderId3 = orderDao.insertOrder(order3)
         orderDao.insertOrderItems(listOf(
@@ -1430,7 +1571,7 @@ class ShopRepository(
                 note = "Biodegradable pouches + eco seals"
             )
         )
-        rawMaterialDao.insertRawMaterials(raws)
+        rawMaterialDao.insertRawMaterials(raws.map { it.copy(isSeed = true) })
 
         // Re-read to get generated ids (raw tables are brand-new in v2, so
         // auto-increment starts at 1 and insert order matches the list above).

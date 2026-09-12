@@ -53,6 +53,13 @@ interface ProductDao {
     @Query("SELECT * FROM products ORDER BY id ASC")
     suspend fun getAllProductsOnce(): List<Product>
 
+    /** Ids of demo-seeded products: flagged rows plus legacy seed SKUs (pre-flag installs). */
+    @Query("SELECT id FROM products WHERE isSeed = 1 OR sku IN (:seedSkus)")
+    suspend fun findSeedProductIds(seedSkus: List<String>): List<Long>
+
+    @Query("DELETE FROM products WHERE id IN (:ids)")
+    suspend fun deleteProductsByIds(ids: List<Long>): Int
+
     @Query("DELETE FROM products")
     suspend fun deleteAllProducts()
 }

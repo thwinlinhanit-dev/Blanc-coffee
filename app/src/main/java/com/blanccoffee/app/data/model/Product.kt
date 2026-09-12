@@ -31,6 +31,11 @@ data class Product(
      * linked through recipes are still auto-deducted (the real constraint).
      */
     val madeToOrder: Boolean = false,
+    /**
+     * True for rows planted by the built-in demo seeder. Used only by
+     * "Remove demo data" — real shop rows are always false and never match.
+     */
+    val isSeed: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()
 ) {
     val isLowStock: Boolean

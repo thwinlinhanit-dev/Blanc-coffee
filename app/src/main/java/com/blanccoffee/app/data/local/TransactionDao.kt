@@ -55,4 +55,11 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions ORDER BY id ASC")
     suspend fun getAllTransactionsOnce(): List<Transaction>
+
+    /** Ids of demo-seeded ledger rows: flagged, linked to seed orders, or legacy seed titles. */
+    @Query("SELECT id FROM transactions WHERE isSeed = 1 OR referenceOrderId IN (:seedOrderIds) OR title IN (:seedTitles)")
+    suspend fun findSeedTransactionIds(seedOrderIds: List<Long>, seedTitles: List<String>): List<Long>
+
+    @Query("DELETE FROM transactions WHERE id IN (:ids)")
+    suspend fun deleteTransactionsByIds(ids: List<Long>): Int
 }

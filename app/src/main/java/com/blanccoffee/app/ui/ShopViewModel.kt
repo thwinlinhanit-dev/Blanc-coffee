@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.blanccoffee.app.data.di.DatabaseModule
 import com.blanccoffee.app.data.local.AppDatabase
+import com.blanccoffee.app.data.local.SettingsStore
+import com.blanccoffee.app.data.local.ThemeMode
 import com.blanccoffee.app.data.model.CategorySalesStat
 import com.blanccoffee.app.data.model.CustomerOrder
 import com.blanccoffee.app.data.model.CustomerPayment
@@ -39,6 +41,7 @@ import java.util.Calendar
 
 class ShopViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = DatabaseModule.provideShopRepository(application)
+    private val settings = SettingsStore(application)
 
     /** True while any database write is in flight; screens show a subtle progress indicator. */
     private val _isWriting = MutableStateFlow(false)
@@ -108,6 +111,67 @@ class ShopViewModel(application: Application) : AndroidViewModel(application) {
 
     val payments: StateFlow<List<CustomerPayment>> = repository.allPayments
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Shop settings (identity, appearance, defaults) — device-local preferences.
+    val shopName: StateFlow<String> = settings.shopName
+    val shopAddress: StateFlow<String> = settings.shopAddress
+    val shopPhone: StateFlow<String> = settings.shopPhone
+    val themeMode: StateFlow<ThemeMode> = settings.themeMode
+    val defaultPayment: StateFlow<String> = settings.defaultPayment
+
+    /** Saves the shop identity block (receipts + close-outs use it immediately). */
+    fun saveShopProfile(name: String, address: String, phone: String) {
+        settings.saveShopProfile(name, address, phone)
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        settings.setThemeMode(mode)
+    }
+
+    fun setDefaultPayment(method: PaymentMethod) {
+        settings.setDefaultPayment(method.name)
+    }
+
+    /** Resolves the saved default payment method, falling back to CASH. */
+    fun defaultPaymentMethod(): PaymentMethod {
+        return runCatching { PaymentMethod.valueOf(defaultPayment.value) }
+            .getOrDefault(PaymentMethod.CASH)
+    }
+
+    /**
+     * Counts demo-seeded rows without deleting — shown in the confirm dialog.
+     */
+    fun previewSeedClear(onDone: (ShopRepository.SeedClearCounts) -> Unit) {
+        viewModelScope.launch {
+            _isWriting.value = true
+            try {
+                onDone(repository.previewSeedClear())
+            } catch (e: Exception) {
+                _writeError.value = e.message ?: "Something went wrong. Please try again."
+            } finally {
+                _isWriting.value = false
+            }
+        }
+    }
+
+    /** Deletes exactly the demo-seeded rows; [onDone] reports per-table counts. */
+    fun clearSeedData(onDone: (ShopRepository.SeedClearCounts) -> Unit = {}) {
+        viewModelScope.launch {
+            _isWriting.value = true
+            try {
+                onDone(repository.clearSeedData())
+            } catch (e: Exception) {
+                _writeError.value = e.message ?: "Something went wrong. Please try again."
+            } finally {
+                _isWriting.value = false
+            }
+        }
+    }
+
+    /** Danger zone: wipes all shop data (settings are kept). */
+    fun clearAllData(onSuccess: () -> Unit = {}) = launchWrite(onSuccess) {
+        repository.clearAllData()
+    }
 
     /** Today's close-out Z-report, recomputed whenever orders/ledger/stock change. */
     val closeoutToday: StateFlow<DailyCloseout?> = combine(
@@ -437,7 +501,11 @@ class ShopViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun exportBackupNow(): String = repository.exportBackup()
 
     /** Suspending multi-format ZIP bundle export for file-picker flows. */
-    suspend fun exportSheetsNow(): ByteArray = repository.exportSheetsBundle()
+    suspend fun exportSheetsNow(): ByteArray = repository.exportSheetsBundle(
+        shopName = shopName.value,
+        shopAddress = shopAddress.value,
+        shopPhone = shopPhone.value
+    )
 
     /** Restores the database from an [exportBackup] JSON string (atomic). */
     fun importBackup(json: String, onSuccess: () -> Unit = {}) = launchWrite(onSuccess) {

@@ -54,5 +54,7 @@ data class Transaction(
     val title: String,
     val note: String = "",
     val referenceOrderId: Long? = null,
+    /** Demo-seeder flag — see [Product.isSeed]. Never true for real ledger rows. */
+    val isSeed: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 )

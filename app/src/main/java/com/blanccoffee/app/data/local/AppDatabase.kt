@@ -61,6 +61,20 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
 }
 
 /**
+ * Migration 4 -> 5: demo-seed flags (`isSeed`) on products, orders,
+ * transactions and raw materials so "Remove demo data" can tell sample rows
+ * apart from real shop rows. All columns default to 0 (real).
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `products` ADD COLUMN `isSeed` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `orders` ADD COLUMN `isSeed` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `transactions` ADD COLUMN `isSeed` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `raw_materials` ADD COLUMN `isSeed` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
  * Migration 3 -> 4: per-product made-to-order flag (fresh production skips
  * finished-stock tracking). Additive, existing rows default to stocked (0).
  */
@@ -105,7 +119,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         ProductRecipe::class,
         CustomerPayment::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -131,7 +145,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     // Migrations preserve real shop data (additive only).
                     // fallbackToDestructiveMigration stays as a last-resort safety net.
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

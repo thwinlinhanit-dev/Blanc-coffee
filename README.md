@@ -80,6 +80,16 @@ no cloud sync, no authentication, no AI features, no network permissions.
   every order **auto-deducts** raw stock — manual Use and auto-deduct share the
   same ledger, and raw shortage never blocks a sale (stock clamps at zero).
 
+### ⚙️ Settings
+- **Shop profile** (name, address, phone) — printed on receipts and close-outs
+- **Appearance** — Light / Dark / follow System theme
+- **Backup shortcuts** — same JSON + spreadsheet exporters and restore
+- **Demo data** — preview exactly what will go, then remove only built-in sample
+  rows (`isSeed` flags + known seed signatures); real shop rows can never match
+- **Order defaults** — payment method pre-selected in new orders
+- **Danger zone** — double-confirm wipe of all shop data (settings are kept)
+- **About** — version, offline-first summary, backup reminder
+
 ### 💰 Finance
 - Unified ledger of income & expense transactions with running totals
   (filtered income, filtered outcome, and net) plus all-time summary cards
@@ -158,10 +168,11 @@ environment variables (falls back to `my-upload-key.jks` in the project root).
 
 ## Notes & limitations
 
-- Database schema is v4 (per-product `madeToOrder` via `MIGRATION_3_4`; v3 added
-  `customer_payments`, order discounts and expiry columns; v2 added the
-  raw-material tables. All migrations are additive, so real shop data is preserved on
-  upgrade; `fallbackToDestructiveMigration` remains only as a last-resort safety net).
+- Database schema is v5 (demo-seed `isSeed` flags via `MIGRATION_4_5`; v4 added
+  per-product `madeToOrder`; v3 added `customer_payments`, order discounts and
+  expiry columns; v2 added the raw-material tables. All migrations are additive,
+  so real shop data is preserved on upgrade; `fallbackToDestructiveMigration`
+  remains only as a last-resort safety net).
 - Single-device, single-user: no staff accounts/PIN yet (backup/restore covers device
   loss). All data stays offline on the device.
 - Receipts/slips ship in-app (text + share). Barcode scanning and staff PINs are

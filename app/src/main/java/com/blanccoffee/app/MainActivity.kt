@@ -18,10 +18,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -65,6 +67,7 @@ import com.blanccoffee.app.ui.screens.DashboardScreen
 import com.blanccoffee.app.ui.screens.FinanceScreen
 import com.blanccoffee.app.ui.screens.InventoryScreen
 import com.blanccoffee.app.ui.screens.OrdersScreen
+import com.blanccoffee.app.ui.screens.SettingsScreen
 import com.blanccoffee.app.ui.theme.CoffeePrimary
 import com.blanccoffee.app.ui.theme.MyApplicationTheme
 
@@ -97,6 +100,12 @@ enum class ShopDestination(
         selectedIcon = Icons.Filled.Payments,
         unselectedIcon = Icons.Outlined.Payments,
         testTag = "nav_finance"
+    ),
+    SETTINGS(
+        title = "Settings",
+        selectedIcon = Icons.Filled.Settings,
+        unselectedIcon = Icons.Outlined.Settings,
+        testTag = "nav_settings"
     )
 }
 
@@ -174,7 +183,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            val themeMode by shopViewModel.themeMode.collectAsState()
+            MyApplicationTheme(
+                darkTheme = when (themeMode) {
+                    com.blanccoffee.app.data.local.ThemeMode.LIGHT -> false
+                    com.blanccoffee.app.data.local.ThemeMode.DARK -> true
+                    else -> androidx.compose.foundation.isSystemInDarkTheme()
+                }
+            ) {
                 ShopApp(
                     viewModel = shopViewModel,
                     onExportBackup = {
@@ -339,6 +355,12 @@ fun ShopApp(
                         viewModel = viewModel,
                         initialOpenExpenseDialog = openExpenseOnFinanceScreen,
                         onDialogDismissed = { openExpenseOnFinanceScreen = false }
+                    )
+                    ShopDestination.SETTINGS -> SettingsScreen(
+                        viewModel = viewModel,
+                        onExportBackup = onExportBackup,
+                        onExportSheets = onExportSheets,
+                        onPickBackupFile = onPickBackupFile
                     )
                 }
             }

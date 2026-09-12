@@ -189,9 +189,15 @@ fun computeRevenueTrend(
 }
 
 /** Share-ready plain-text close-out (Viber/Telegram/Bluetooth-print targets). */
-fun DailyCloseout.toShareText(): String {
+fun DailyCloseout.toShareText(
+    shopName: String = "BLANC COFFEE",
+    shopAddress: String = "",
+    shopPhone: String = ""
+): String {
     val sb = StringBuilder()
-    sb.appendLine("BLANC COFFEE — DAY CLOSE-OUT")
+    sb.appendLine("$shopName — DAY CLOSE-OUT")
+    if (shopAddress.isNotBlank()) sb.appendLine(shopAddress)
+    if (shopPhone.isNotBlank()) sb.appendLine(shopPhone)
     sb.appendLine(dayLabel)
     sb.appendLine("------------------------------")
     sb.appendLine("Orders: $ordersCount")
